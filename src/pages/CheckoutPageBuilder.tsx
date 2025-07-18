@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
@@ -22,10 +22,14 @@ const schema = yup.object({
   slug: yup
     .string()
     .required('URL slug é obrigatório')
-    .matches(/^[a-z0-9-]+$/,'Slug só pode conter letras minúsculas, números e hífens')
+    .matches(/^[a-z0-9-]+$/, 'Slug só pode conter letras minúsculas, números e hífens')
     .max(100, 'Slug deve ter no máximo 100 caracteres'),
   description: yup.string().max(1000, 'Descrição deve ter no máximo 1000 caracteres').nullable(),
-  logo_url: yup.string().url('Deve ser uma URL válida').nullable(),
+  logo_url: yup
+    .string()
+    .url('Deve ser uma URL válida')
+    .nullable()
+    .transform((value) => (value === '' ? null : value)),
   is_active: yup.boolean(),
 });
 
@@ -40,11 +44,11 @@ interface FormData {
 export default function CheckoutPageBuilder() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const isEditing = id !== 'new';
+  const location = useLocation();
+  const { user, loading: authLoading } = useAuth();
+  const isEditing = id !== undefined && id !== 'new';
   const subscriptionRef = useRef<any>(null);
   const [isNavOpen, setIsNavOpen] = useState(false);
-
   const [checkoutPage, setCheckoutPage] = useState<CheckoutPage | null>(null);
   const [theme, setTheme] = useState<CheckoutTheme>({
     primary_color: '#3B82F6',
@@ -81,7 +85,28 @@ export default function CheckoutPageBuilder() {
 
   const watchedTitle = watch('title');
   const watchedSlug = watch('slug');
-  const watchedIsActive = watch('is_active');
+
+  // Log navigation details
+  useEffect(() => {
+    console.log('Page ID from useParams:', id);
+    console.log('Current route:', location.pathname);
+    console.log('isEditing:', isEditing);
+    if (isEditing && (!id || id === 'undefined')) {
+      console.error('Invalid ID detected. Expected route: /checkout-pages/new or /checkout-pages/:id/edit');
+      toast.error('ID da página inválido. Redirecionando...');
+      navigate('/checkout-pages');
+    }
+  }, [id, isEditing, navigate, location.pathname]);
+
+  // Utility to validate URLs
+  const isValidUrl = (url: string) => {
+    try {
+      new URL(url);
+      return true;
+    } catch {
+      return false;
+    }
+  };
 
   // Auto-generate slug from title
   useEffect(() => {
@@ -99,14 +124,14 @@ export default function CheckoutPageBuilder() {
   // Check slug uniqueness
   const checkSlugUniqueness = useCallback(
     debounce(async (slug: string) => {
-      if (!slug || isEditing) return;
+      if (!slug || isEditing || !user?.id) return;
       setCheckingSlug(true);
       try {
         const { data, error } = await supabase
           .from('checkout_pages')
           .select('id')
           .eq('slug', slug)
-          .neq('user_id', user?.id || '')
+          .neq('user_id', user.id)
           .single();
 
         if (error && error.code !== 'PGRST116') {
@@ -123,7 +148,7 @@ export default function CheckoutPageBuilder() {
         setCheckingSlug(false);
       }
     }, 500),
-    [user, isEditing, setValue]
+    [user?.id, isEditing, setValue]
   );
 
   useEffect(() => {
@@ -134,7 +159,7 @@ export default function CheckoutPageBuilder() {
 
   // Fetch existing page data
   useEffect(() => {
-    if (!user) {
+    if (!user?.id) {
       setLoading(false);
       toast.error('Você precisa estar logado para acessar esta página');
       navigate('/auth');
@@ -153,7 +178,7 @@ export default function CheckoutPageBuilder() {
             .single();
 
           if (error) {
-            throw new Error(`Error fetching checkout page: ${error.message}`);
+            throw new Error(`Error fetching checkout page: ${error.message} (Code: ${error.code})`);
           }
 
           if (!data) {
@@ -171,9 +196,9 @@ export default function CheckoutPageBuilder() {
             logo_url: data.logo_url || null,
             is_active: data.is_active,
           });
-        } catch (error) {
+        } catch (error: any) {
           console.error('Error fetching page:', error);
-          toast.error('Falha ao carregar página de checkout');
+          toast.error(error.message || 'Falha ao carregar página de checkout');
           navigate('/checkout-pages');
         } finally {
           setLoading(false);
@@ -184,11 +209,11 @@ export default function CheckoutPageBuilder() {
     } else {
       setLoading(false);
     }
-  }, [id, isEditing, user, navigate, reset]);
+  }, [id, isEditing, user?.id, navigate, reset, theme]);
 
   // Real-time subscription
   useEffect(() => {
-    if (!user || !isEditing || !id) return;
+    if (!user?.id || !isEditing || !id) return;
 
     const subscription = supabase
       .channel('checkout_page_channel')
@@ -217,6 +242,7 @@ export default function CheckoutPageBuilder() {
         }
       )
       .subscribe((status, err) => {
+        console.log('Subscription status:', status, 'Error:', err);
         if (err) {
           console.error('Subscription error:', err);
           toast.error('Falha ao configurar atualizações em tempo real');
@@ -228,12 +254,44 @@ export default function CheckoutPageBuilder() {
     return () => {
       subscriptionRef.current?.unsubscribe();
     };
-  }, [user, isEditing, id, reset]);
+  }, [user?.id, isEditing, id, reset, theme]);
 
   const onSubmit = async (data: FormData) => {
-    if (!user) {
-      toast.error('Você precisa estar logado para salvar');
+    if (!user || !user.id) {
+      console.error('User object:', user);
+      toast.error('Usuário não autenticado ou ID do usuário inválido');
       return;
+    }
+
+    if (isEditing && (!id || id === 'undefined')) {
+      console.error('Invalid page ID:', id);
+      toast.error('ID da página inválido');
+      return;
+    }
+
+    // Validate products
+    if (products.length === 0) {
+      toast.error('Adicione pelo menos um produto à página');
+      return;
+    }
+
+    for (const product of products) {
+      if (!product.name.trim()) {
+        toast.error('Todos os produtos devem ter um nome');
+        return;
+      }
+      if (product.price <= 0) {
+        toast.error(`O preço do produto "${product.name}" deve ser maior que zero`);
+        return;
+      }
+      if (product.image_url && !isValidUrl(product.image_url)) {
+        toast.error(`URL da imagem inválida para o produto "${product.name}"`);
+        return;
+      }
+      if (product.type === 'digital' && product.digital_file_url && !isValidUrl(product.digital_file_url)) {
+        toast.error(`URL do arquivo digital inválida para o produto "${product.name}"`);
+        return;
+      }
     }
 
     try {
@@ -241,13 +299,19 @@ export default function CheckoutPageBuilder() {
         title: data.title,
         slug: data.slug,
         description: data.description || undefined,
-        logo_url: data.logo_url || undefined,
+        logo_url: data.logo_url ? data.logo_url.trim() : undefined,
         theme,
         custom_fields: customFields,
-        products,
+        products: products.map((p) => ({
+          ...p,
+          image_url: p.image_url ? p.image_url.trim() : undefined,
+          digital_file_url: p.digital_file_url ? p.digital_file_url.trim() : undefined,
+        })),
         is_active: data.is_active,
         user_id: user.id,
       };
+
+      console.log('Submitting pageData:', JSON.stringify(pageData, null, 2));
 
       if (isEditing) {
         const { error } = await supabase
@@ -257,7 +321,20 @@ export default function CheckoutPageBuilder() {
           .eq('user_id', user.id);
 
         if (error) {
-          throw new Error(`Error updating page: ${error.message}`);
+          console.error('Supabase update error:', JSON.stringify(error, null, 2));
+          if (error.code === '22P02') {
+            toast.error('ID do usuário inválido. Verifique sua sessão.');
+          } else if (error.code === '23505') {
+            toast.error('Este slug já está em uso. Escolha outro.');
+            setValue('slug', `${data.slug}-${Date.now()}`);
+          } else if (error.code === '42501') {
+            toast.error('Permissão negada. Verifique as políticas de acesso do banco de dados.');
+          } else if (error.code === 'PGRST116') {
+            toast.error('Página não encontrada ou você não tem permissão para editá-la.');
+          } else {
+            throw new Error(`Error updating page: ${error.message} (Code: ${error.code})`);
+          }
+          return;
         }
         toast.success('Página de checkout atualizada!');
       } else {
@@ -266,15 +343,26 @@ export default function CheckoutPageBuilder() {
           .insert(pageData);
 
         if (error) {
-          throw new Error(`Error creating page: ${error.message}`);
+          console.error('Supabase insert error:', JSON.stringify(error, null, 2));
+          if (error.code === '22P02') {
+            toast.error('ID do usuário inválido. Verifique sua sessão.');
+          } else if (error.code === '23505') {
+            toast.error('Este slug já está em uso. Escolha outro.');
+            setValue('slug', `${data.slug}-${Date.now()}`);
+          } else if (error.code === '42501') {
+            toast.error('Permissão negada. Verifique as políticas de acesso do banco de dados.');
+          } else {
+            throw new Error(`Error creating page: ${error.message} (Code: ${error.code})`);
+          }
+          return;
         }
         toast.success('Página de checkout criada!');
       }
 
       navigate('/checkout-pages');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving page:', error);
-      toast.error('Falha ao salvar página de checkout');
+      toast.error(`Falha ao salvar página de checkout: ${error.message}`);
     }
   };
 
@@ -303,23 +391,28 @@ export default function CheckoutPageBuilder() {
   const addProduct = () => {
     const newProduct: Product = {
       id: Date.now().toString(),
-      name: 'Novo Produto',
+      name: '',
       description: '',
       price: 0,
       type: 'digital',
       is_active: true,
       requires_shipping: false,
+      image_url: '',
+      digital_file_url: '',
     };
     setProducts([...products, newProduct]);
   };
 
   const updateProduct = (index: number, product: Partial<Product>) => {
     const updated = [...products];
-    updated[index] = {
+    const newProduct = {
       ...updated[index],
       ...product,
-      requires_shipping: product.type === 'physical' ? true : product.requires_shipping,
+      image_url: product.image_url ? product.image_url.trim() : updated[index].image_url,
+      digital_file_url: product.digital_file_url ? product.digital_file_url.trim() : updated[index].digital_file_url,
+      requires_shipping: product.type === 'physical' ? true : product.requires_shipping ?? updated[index].requires_shipping,
     };
+    updated[index] = newProduct;
     setProducts(updated);
   };
 
@@ -327,7 +420,7 @@ export default function CheckoutPageBuilder() {
     setProducts(products.filter((_, i) => i !== index));
   };
 
-  if (loading) {
+  if (authLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
@@ -335,11 +428,19 @@ export default function CheckoutPageBuilder() {
     );
   }
 
-  if (!user) {
+  if (!user || !user.id) {
     return (
       <div className="text-center py-12">
         <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">Por favor, faça login</h3>
         <p className="text-sm sm:text-base text-gray-600">Você precisa estar logado para criar ou editar páginas de checkout.</p>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
       </div>
     );
   }
@@ -388,7 +489,7 @@ export default function CheckoutPageBuilder() {
                 key={tab.id}
                 onClick={() => {
                   setActiveTab(tab.id);
-                  setIsNavOpen(false); // Close menu on tab click (mobile)
+                  setIsNavOpen(false);
                 }}
                 className={`w-full flex items-center space-x-3 px-3 py-2 text-sm sm:text-base font-medium rounded-lg transition-colors ${
                   activeTab === tab.id
@@ -438,8 +539,7 @@ export default function CheckoutPageBuilder() {
                         {...register('slug')}
                         type="text"
                         disabled={checkingSlug}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-100"
-                        placeholder="curso-premium"
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
                       />
                     </div>
                     {errors.slug && (
@@ -478,7 +578,7 @@ export default function CheckoutPageBuilder() {
                     {errors.logo_url && (
                       <p className="mt-1 text-xs sm:text-sm text-red-600">{errors.logo_url.message}</p>
                     )}
-                    {watch('logo_url') && (
+                    {watch('logo_url') && isValidUrl(watch('logo_url')) && (
                       <div className="mt-2">
                         <img
                           src={watch('logo_url')}
@@ -815,7 +915,7 @@ export default function CheckoutPageBuilder() {
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                         <div>
                           <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
-                            Nome do Produto
+                            Nome do Produto *
                           </label>
                           <input
                             type="text"
@@ -828,7 +928,7 @@ export default function CheckoutPageBuilder() {
 
                         <div>
                           <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
-                            Preço (R$)
+                            Preço (R$) *
                           </label>
                           <input
                             type="number"
@@ -870,13 +970,13 @@ export default function CheckoutPageBuilder() {
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                             placeholder="https://example.com/image.jpg"
                           />
-                          {product.image_url && (
+                          {product.image_url && isValidUrl(product.image_url) && (
                             <div className="mt-2">
                               <img
                                 src={product.image_url}
                                 alt="Product Preview"
                                 className="h-12 sm:h-16 w-auto rounded-lg"
-                                onError={() => toast.error(`URL da imagem inválida para ${product.name}`)}
+                                onError={() => toast.error(`URL da imagem inválida para ${product.name || 'produto'}`)}
                               />
                             </div>
                           )}
@@ -899,7 +999,7 @@ export default function CheckoutPageBuilder() {
                       {product.type === 'digital' && (
                         <div className="mt-3 sm:mt-4">
                           <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
-                            URL do Arquivo Digital
+                            URL do Arquivo Digital (opcional)
                           </label>
                           <input
                             type="url"
@@ -953,7 +1053,7 @@ export default function CheckoutPageBuilder() {
                   >
                     <div className="max-w-md mx-auto">
                       <div className="text-center mb-6 sm:mb-8">
-                        {watch('logo_url') && (
+                        {watch('logo_url') && isValidUrl(watch('logo_url')) && (
                           <img
                             src={watch('logo_url')}
                             alt="Logo"
@@ -979,7 +1079,7 @@ export default function CheckoutPageBuilder() {
                                 <div key={product.id} className="border rounded-lg p-3 sm:p-4">
                                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start">
                                     <div className="flex items-start space-x-3 sm:space-x-4">
-                                      {product.image_url && (
+                                      {product.image_url && isValidUrl(product.image_url) && (
                                         <img
                                           src={product.image_url}
                                           alt={product.name}
@@ -988,7 +1088,7 @@ export default function CheckoutPageBuilder() {
                                         />
                                       )}
                                       <div>
-                                        <h3 className="font-medium text-sm sm:text-base">{product.name}</h3>
+                                        <h3 className="font-medium text-sm sm:text-base">{product.name || 'Produto sem nome'}</h3>
                                         <p className="text-xs sm:text-sm text-gray-600">{product.description}</p>
                                       </div>
                                     </div>

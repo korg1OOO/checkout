@@ -4,41 +4,42 @@ import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { CheckoutPage as CheckoutPageType, CustomerInfo, Product } from '../types';
+import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
 
 const schema = yup.object({
-  name: yup.string().required('Name is required'),
-  email: yup.string().email('Invalid email').required('Email is required'),
-  phone: yup.string().required('Phone is required'),
-  cpf: yup.string().required('CPF is required'),
+  name: yup.string().required('Nome é obrigatório'),
+  email: yup.string().email('Email inválido').required('Email é obrigatório'),
+  phone: yup.string().required('Telefone é obrigatório'),
+  cpf: yup.string().required('CPF é obrigatório'),
   address_street: yup.string().when('requiresShipping', {
     is: true,
-    then: (schema) => schema.required('Street address is required'),
+    then: (schema) => schema.required('Endereço é obrigatório'),
     otherwise: (schema) => schema.notRequired(),
   }),
   address_number: yup.string().when('requiresShipping', {
     is: true,
-    then: (schema) => schema.required('Address number is required'),
+    then: (schema) => schema.required('Número é obrigatório'),
     otherwise: (schema) => schema.notRequired(),
   }),
   address_neighborhood: yup.string().when('requiresShipping', {
     is: true,
-    then: (schema) => schema.required('Neighborhood is required'),
+    then: (schema) => schema.required('Bairro é obrigatório'),
     otherwise: (schema) => schema.notRequired(),
   }),
   address_city: yup.string().when('requiresShipping', {
     is: true,
-    then: (schema) => schema.required('City is required'),
+    then: (schema) => schema.required('Cidade é obrigatória'),
     otherwise: (schema) => schema.notRequired(),
   }),
   address_state: yup.string().when('requiresShipping', {
     is: true,
-    then: (schema) => schema.required('State is required'),
+    then: (schema) => schema.required('Estado é obrigatório'),
     otherwise: (schema) => schema.notRequired(),
   }),
   address_zip: yup.string().when('requiresShipping', {
     is: true,
-    then: (schema) => schema.required('ZIP code is required'),
+    then: (schema) => schema.required('CEP é obrigatório'),
     otherwise: (schema) => schema.notRequired(),
   }),
 });
@@ -59,7 +60,7 @@ interface FormData {
 }
 
 export default function CheckoutPage() {
-  const { slug } = useParams();
+  const { slug } = useParams<{ slug: string }>();
   const [checkoutPage, setCheckoutPage] = useState<CheckoutPageType | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
@@ -71,77 +72,51 @@ export default function CheckoutPage() {
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: yupResolver(schema),
-    context: { requiresShipping: checkoutPage?.products.some((p) => p.requires_shipping) },
+    context: { requiresShipping: checkoutPage?.products.some((p) => p.requires_shipping && selectedProducts.includes(p.id)) },
   });
 
   useEffect(() => {
-    setTimeout(() => {
-      const mockPage: CheckoutPageType = {
-        id: '1',
-        user_id: 'user1',
-        title: 'Premium Web Development Course',
-        slug: slug || 'premium-course',
-        description: 'Master modern web development with our comprehensive course',
-        logo_url: 'https://images.pexels.com/photos/11035380/pexels-photo-11035380.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=2',
-        theme: {
-          primary_color: '#3B82F6',
-          secondary_color: '#1E40AF',
-          background_color: '#FFFFFF',
-          text_color: '#1F2937',
-          font_family: 'Inter',
-          border_radius: '8px',
-          button_style: 'rounded',
-        },
-        custom_fields: [
-          {
-            id: '1',
-            name: 'company',
-            label: 'Company Name (Optional)',
-            type: 'text',
-            required: false,
-            placeholder: 'Digite o nome da sua empresa',
-          },
-          {
-            id: '2',
-            name: 'experience',
-            label: 'Experiência em Programação',
-            type: 'select',
-            required: true,
-            options: ['Iniciante', 'Intermediário', 'Avançado'],
-          },
-        ],
-        products: [
-          {
-            id: '1',
-            name: 'Premium Web Development Course',
-            description: 'Complete course covering React, Node.js, TypeScript, and modern deployment strategies. Includes lifetime access and 1-on-1 mentoring sessions.',
-            price: 299,
-            type: 'digital',
-            image_url: 'https://images.pexels.com/photos/11035380/pexels-photo-11035380.jpeg?auto=compress&cs=tinysrgb&w=400&h=300&dpr=2',
-            is_active: true,
-            requires_shipping: false,
-          },
-          {
-            id: '2',
-            name: 'Materiais Físicos do Curso',
-            description: 'Manual impresso, adesivos e mercadorias exclusivas enviados para sua porta.',
-            price: 49,
-            type: 'physical',
-            image_url: 'https://images.pexels.com/photos/4050315/pexels-photo-4050315.jpeg?auto=compress&cs=tinysrgb&w=400&h=300&dpr=2',
-            is_active: true,
-            requires_shipping: true,
-          },
-        ],
-        is_active: true,
-        created_at: '2024-01-15T10:00:00Z',
-        updated_at: '2024-01-15T10:00:00Z',
-      };
+    const fetchCheckoutPage = async () => {
+      if (!slug) {
+        toast.error('Slug da página inválido');
+        setLoading(false);
+        return;
+      }
 
-      setCheckoutPage(mockPage);
-      setSelectedProducts([mockPage.products[0].id]);
-      setQuantities({ [mockPage.products[0].id]: 1 });
-      setLoading(false);
-    }, 1000);
+      try {
+        setLoading(true);
+        const { data, error } = await supabase
+          .from('checkout_pages')
+          .select('*')
+          .eq('slug', slug)
+          .eq('is_active', true)
+          .single();
+
+        if (error) {
+          throw new Error(`Erro ao buscar página: ${error.message} (Code: ${error.code})`);
+        }
+
+        if (!data) {
+          throw new Error('Página não encontrada ou não está ativa');
+        }
+
+        setCheckoutPage(data);
+        setSelectedProducts(data.products.filter((p: Product) => p.is_active).map((p: Product) => p.id).slice(0, 1));
+        setQuantities(
+          data.products.filter((p: Product) => p.is_active).reduce((acc: Record<string, number>, p: Product) => {
+            acc[p.id] = 1;
+            return acc;
+          }, {})
+        );
+      } catch (error: any) {
+        console.error('Error fetching checkout page:', error);
+        toast.error(error.message || 'Falha ao carregar página de checkout');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCheckoutPage();
   }, [slug]);
 
   const onSubmit = async (data: FormData) => {
@@ -157,7 +132,7 @@ export default function CheckoutPage() {
         phone: data.phone,
         cpf: data.cpf,
         custom_fields: {},
-        ...(checkoutPage?.products.some((p) => p.requires_shipping) && {
+        ...(requiresShipping && {
           address: {
             street: data.address_street!,
             number: data.address_number!,
@@ -194,6 +169,7 @@ export default function CheckoutPage() {
       setSelectedProducts([]);
       setQuantities({});
     } catch (error) {
+      console.error('Error processing order:', error);
       toast.error('Falha ao processar pedido. Tente novamente.');
     }
   };
@@ -241,7 +217,7 @@ export default function CheckoutPage() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Página Não Encontrada</h1>
-          <p className="text-sm sm:text-base text-gray-600">A página de checkout que você está procurando não existe.</p>
+          <p className="text-sm sm:text-base text-gray-600">A página de checkout que você está procurando não existe ou não está ativa.</p>
         </div>
       </div>
     );
@@ -264,6 +240,7 @@ export default function CheckoutPage() {
               src={checkoutPage.logo_url}
               alt="Logo"
               className="h-12 sm:h-16 mx-auto mb-4 sm:mb-6 rounded-lg"
+              onError={() => toast.error('URL do logo inválida')}
             />
           )}
           <h1 className="text-2xl sm:text-3xl font-bold mb-3 sm:mb-4">{checkoutPage.title}</h1>
@@ -279,7 +256,7 @@ export default function CheckoutPage() {
               Selecionar Produtos
             </h2>
             <div className="space-y-4">
-              {checkoutPage.products.map((product) => (
+              {checkoutPage.products.filter((p) => p.is_active).map((product) => (
                 <div
                   key={product.id}
                   className={`border rounded-lg p-3 sm:p-4 cursor-pointer transition-all ${
@@ -308,6 +285,7 @@ export default function CheckoutPage() {
                         src={product.image_url}
                         alt={product.name}
                         className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-lg"
+                        onError={() => toast.error(`URL da imagem inválida para ${product.name}`)}
                       />
                     )}
                     <div className="flex-1">
@@ -337,7 +315,7 @@ export default function CheckoutPage() {
                             className="text-lg sm:text-2xl font-bold"
                             style={{ color: checkoutPage.theme.primary_color }}
                           >
-                            ${product.price}
+                            R${product.price.toFixed(2)}
                           </span>
                         </div>
                       </div>
@@ -348,7 +326,7 @@ export default function CheckoutPage() {
                             type="number"
                             min="1"
                             value={quantities[product.id] || 1}
-                            onChange={(e) => updateQuantity(product.id, parseInt(e.target.value))}
+                            onChange={(e) => updateQuantity(product.id, parseInt(e.target.value) || 1)}
                             className="w-16 sm:w-20 px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
                             onClick={(e) => e.stopPropagation()}
                           />
@@ -358,6 +336,11 @@ export default function CheckoutPage() {
                   </div>
                 </div>
               ))}
+              {checkoutPage.products.filter((p) => p.is_active).length === 0 && (
+                <div className="text-center py-6 text-gray-500">
+                  <p className="text-sm sm:text-base">Nenhum produto disponível para seleção.</p>
+                </div>
+              )}
             </div>
             {selectedProducts.length > 0 && (
               <div className="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-gray-200">
@@ -441,7 +424,7 @@ export default function CheckoutPage() {
                     </label>
                     {field.type === 'textarea' ? (
                       <textarea
-                        {...register(field.name, { required: field.required })}
+                        {...register(field.name, { required: field.required && `${field.label} é obrigatório` })}
                         rows={3}
                         className="w-full px-3 py-2 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         style={{ borderRadius: checkoutPage.theme.border_radius }}
@@ -449,20 +432,30 @@ export default function CheckoutPage() {
                       />
                     ) : field.type === 'select' ? (
                       <select
-                        {...register(field.name, { required: field.required })}
+                        {...register(field.name, { required: field.required && `${field.label} é obrigatório` })}
                         className="w-full px-3 py-2 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         style={{ borderRadius: checkoutPage.theme.border_radius }}
                       >
-                        <option value="">Selecionar {field.label}</option>
+                        <option value="">{field.placeholder || `Selecionar ${field.label}`}</option>
                         {field.options?.map((option) => (
                           <option key={option} value={option}>
                             {option}
                           </option>
                         ))}
                       </select>
+                    ) : field.type === 'checkbox' ? (
+                      <label className="flex items-center">
+                        <input
+                          {...register(field.name, { required: field.required && `${field.label} é obrigatório` })}
+                          type="checkbox"
+                          className="rounded border-gray-300 focus:ring-2"
+                          style={{ accentColor: checkoutPage.theme.primary_color }}
+                        />
+                        <span className="ml-2 text-xs sm:text-sm">{field.label}</span>
+                      </label>
                     ) : (
                       <input
-                        {...register(field.name, { required: field.required })}
+                        {...register(field.name, { required: field.required && `${field.label} é obrigatório` })}
                         type={field.type}
                         className="w-full px-3 py-2 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         style={{ borderRadius: checkoutPage.theme.border_radius }}
@@ -470,9 +463,7 @@ export default function CheckoutPage() {
                       />
                     )}
                     {errors[field.name] && (
-                      <p className="mt-1 text-xs sm:text-sm text-red-600">
-                        {field.label} is required
-                      </p>
+                      <p className="mt-1 text-xs sm:text-sm text-red-600">{errors[field.name].message}</p>
                     )}
                   </div>
                 ))}
@@ -577,7 +568,7 @@ export default function CheckoutPage() {
             )}
           </div>
 
-          {/* Payment Section */}
+          {/* Payment Section (Unchanged) */}
           <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200">
             <h2 className="text-lg sm:text-xl font-semibold mb-4 sm:mb-6" style={{ color: checkoutPage.theme.text_color }}>
               Informações de Pagamento
