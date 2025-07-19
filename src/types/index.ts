@@ -1,3 +1,4 @@
+// types.ts
 export interface User {
   id: string;
   email: string;
@@ -16,6 +17,7 @@ export interface CheckoutPage {
   theme: CheckoutTheme;
   custom_fields: CustomField[];
   products: Product[];
+  layout: LayoutElement[]; // New property for layout
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -39,6 +41,7 @@ export interface CustomField {
   required: boolean;
   options?: string[];
   placeholder?: string;
+  order: number;
 }
 
 export interface Product {
@@ -51,6 +54,37 @@ export interface Product {
   is_active: boolean;
   digital_file_url?: string;
   requires_shipping: boolean;
+  order: number;
+}
+
+export interface LayoutElement {
+  id: string;
+  type:
+    | 'title'
+    | 'description'
+    | 'logo'
+    | 'text_field'
+    | 'button'
+    | 'image'
+    | 'spacer'
+    | 'divider'
+    | 'product_list'
+    | 'customer_info_form';
+  content: {
+    text?: string;
+    url?: string;
+    placeholder?: string;
+    required?: boolean;
+    fieldId?: string; // For linking to custom_fields
+    style?: {
+      fontSize?: string;
+      fontWeight?: string;
+      align?: 'left' | 'center' | 'right';
+      height?: string; // For spacers
+      color?: string; // For dividers
+    };
+  };
+  order: number;
 }
 
 export interface Order {

@@ -81,13 +81,11 @@ export default function Settings() {
     resolver: yupResolver(passwordSchema),
   });
 
-  // Fetch user profile and notification preferences
   useEffect(() => {
     if (!user || !session || loading) return;
 
     const fetchProfileAndPrefs = async () => {
       try {
-        // Fetch user data
         const { data: { user: refreshedUser }, error: userError } = await supabase.auth.getUser();
         if (userError) {
           console.error('User fetch error:', userError);
@@ -96,12 +94,10 @@ export default function Settings() {
 
         console.log('Fetched user:', refreshedUser);
 
-        // Update form with latest user data
         profileForm.setValue('name', refreshedUser?.user_metadata?.name || '');
         profileForm.setValue('email', refreshedUser?.email || '');
         setPendingEmail(refreshedUser?.new_email || null);
 
-        // Fetch profile data
         const { data: profileData, error: profileError } = await supabase
           .from('user_profiles')
           .select('company, website')
@@ -118,7 +114,6 @@ export default function Settings() {
           profileForm.setValue('website', profileData.website || '');
         }
 
-        // Fetch notification preferences
         const { data: prefsData, error: prefsError } = await supabase
           .from('user_preferences')
           .select('*')
@@ -156,12 +151,10 @@ export default function Settings() {
     }
 
     try {
-      // Check if email or name has changed
       const emailChanged = data.email !== user.email;
       const nameChanged = data.name !== (user.user_metadata?.name || '');
       let authUpdated = false;
 
-      // Update auth user data if email or name changed
       if (emailChanged || nameChanged) {
         const updatePayload: any = {};
         if (emailChanged) updatePayload.email = data.email;
@@ -182,11 +175,9 @@ export default function Settings() {
         console.log('Auth update response:', authData);
         authUpdated = true;
 
-        // Refresh session to get updated user data
         await refreshSession();
       }
 
-      // Update or insert profile data if company or website changed
       const companyChanged = data.company !== (profileForm.getValues('company') || '');
       const websiteChanged = data.website !== (profileForm.getValues('website') || '');
       if (companyChanged || websiteChanged) {
@@ -207,7 +198,6 @@ export default function Settings() {
         }
       }
 
-      // Update form with latest user data
       const { data: { user: refreshedUser } } = await supabase.auth.getUser();
       console.log('Refreshed user after update:', refreshedUser);
       profileForm.setValue('name', refreshedUser?.user_metadata?.name || '');
@@ -310,18 +300,22 @@ export default function Settings() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-cyan-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 dark:border-indigo-500"></div>
       </div>
     );
   }
 
   if (!user || !session) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-cyan-50 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center py-12">
-          <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">Por favor, faça login</h3>
-          <p className="text-sm sm:text-base text-gray-600">Você precisa estar logado para acessar as configurações.</p>
+          <h3 className="text-base sm:text-lg font-medium text-gray-900 dark:!text-white mb-2">
+            Por favor, faça login
+          </h3>
+          <p className="text-sm sm:text-base text-gray-600 dark:!text-gray-400">
+            Você precisa estar logado para acessar as configurações.
+          </p>
         </div>
       </div>
     );
@@ -335,23 +329,25 @@ export default function Settings() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-cyan-50 px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+    <div className="min-h-screen px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
       {/* Mobile Menu Button */}
       <button
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white rounded-md shadow-md"
+        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white dark:bg-gray-700 rounded-md shadow-md"
         onClick={() => setIsNavOpen(!isNavOpen)}
       >
         {isNavOpen ? (
-          <XMarkIcon className="h-6 w-6 text-gray-900" />
+          <XMarkIcon className="h-6 w-6 text-gray-900 dark:!text-white" />
         ) : (
-          <Bars3Icon className="h-6 w-6 text-gray-900" />
+          <Bars3Icon className="h-6 w-6 text-gray-900 dark:!text-white" />
         )}
       </button>
 
       <div className="max-w-4xl mx-auto">
         <div className="mb-6 sm:mb-8">
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Configurações</h1>
-          <p className="text-sm sm:text-base text-gray-600 mt-1">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:!text-white">
+            Configurações
+          </h1>
+          <p className="text-sm sm:text-base text-gray-600 dark:!text-gray-400 mt-1">
             Gerencie as configurações da sua conta e preferências
           </p>
         </div>
@@ -359,7 +355,7 @@ export default function Settings() {
         <div className="flex flex-col lg:flex-row lg:gap-8">
           {/* Sidebar Navigation */}
           <div
-            className={`lg:w-64 bg-white lg:bg-transparent rounded-xl lg:rounded-none shadow-sm lg:shadow-none border lg:border-none border-gray-200 lg:sticky lg:top-4 transform transition-transform duration-300 ease-in-out ${
+            className={`lg:w-64 bg-white dark:bg-gray-700 lg:bg-transparent lg:dark:bg-transparent rounded-xl lg:rounded-none shadow-sm lg:shadow-none border lg:border-none border-gray-200 dark:border-gray-600 lg:sticky lg:top-4 transform transition-transform duration-300 ease-in-out ${
               isNavOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
             } fixed inset-y-0 left-0 z-40 lg:static w-64 p-4 lg:p-0`}
           >
@@ -373,8 +369,8 @@ export default function Settings() {
                   }}
                   className={`w-full flex items-center space-x-3 px-3 py-2 text-sm sm:text-base font-medium rounded-lg transition-colors ${
                     activeTab === tab.id
-                      ? 'bg-indigo-100 text-indigo-700 border border-indigo-200'
-                      : 'text-gray-700 hover:bg-gray-100'
+                      ? 'bg-indigo-100 dark:bg-gray-600 text-indigo-700 dark:!text-indigo-200 border border-indigo-200 dark:border-gray-600'
+                      : 'text-gray-700 dark:!text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'
                   }`}
                 >
                   <tab.icon className="h-5 w-5" />
@@ -388,52 +384,52 @@ export default function Settings() {
           <div className="flex-1 mt-4 lg:mt-0">
             {/* Profile Tab */}
             {activeTab === 'profile' && (
-              <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200">
-                <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-4 sm:mb-6">
+              <div className="bg-white dark:bg-gray-700 rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-gray-600">
+                <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:!text-white border-red-500 mb-4 sm:mb-6">
                   Informações do Perfil
                 </h2>
                 <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} className="space-y-4 sm:space-y-6">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6">
                     <div>
-                      <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-xs sm:text-sm font-medium text-gray-900 dark:!text-white border-red-500 mb-2">
                         Nome Completo
                       </label>
                       <input
                         {...profileForm.register('name')}
                         type="text"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:!text-gray-100"
                         placeholder="Digite seu nome completo"
                       />
                       {profileForm.formState.errors.name && (
-                        <p className="mt-1 text-xs sm:text-sm text-red-600">
+                        <p className="mt-1 text-xs sm:text-sm text-red-600 dark:!text-red-400">
                           {profileForm.formState.errors.name.message}
                         </p>
                       )}
                     </div>
 
                     <div>
-                      <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-xs sm:text-sm font-medium text-gray-900 dark:!text-white border-red-500 mb-2">
                         Endereço de Email
                       </label>
                       <input
                         {...profileForm.register('email')}
                         type="email"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:!text-gray-100"
                         placeholder="Digite seu email"
                       />
                       {profileForm.formState.errors.email && (
-                        <p className="mt-1 text-xs sm:text-sm text-red-600">
+                        <p className="mt-1 text-xs sm:text-sm text-red-600 dark:!text-red-400">
                           {profileForm.formState.errors.email.message}
                         </p>
                       )}
                       {pendingEmail && pendingEmail !== user.email && (
-                        <div className="mt-2 text-xs sm:text-sm text-gray-600">
+                        <div className="mt-2 text-xs sm:text-sm text-gray-600 dark:!text-gray-400">
                           <p>
                             Email pendente: {pendingEmail}{' '}
                             <button
                               type="button"
                               onClick={resendConfirmationEmail}
-                              className="text-indigo-600 hover:text-indigo-700 font-medium"
+                              className="text-indigo-600 dark:!text-indigo-400 hover:text-indigo-700 dark:hover:!text-indigo-300 font-medium"
                             >
                               Reenviar confirmação
                             </button>
@@ -443,29 +439,29 @@ export default function Settings() {
                     </div>
 
                     <div>
-                      <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-xs sm:text-sm font-medium text-gray-900 dark:!text-white border-red-500 mb-2">
                         Empresa (Opcional)
                       </label>
                       <input
                         {...profileForm.register('company')}
                         type="text"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:!text-gray-100"
                         placeholder="Nome da sua empresa"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-xs sm:text-sm font-medium text-gray-900 dark:!text-white border-red-500 mb-2">
                         Website (Opcional)
                       </label>
                       <input
                         {...profileForm.register('website')}
                         type="url"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:!text-gray-100"
                         placeholder="https://yourwebsite.com"
                       />
                       {profileForm.formState.errors.website && (
-                        <p className="mt-1 text-xs sm:text-sm text-red-600">
+                        <p className="mt-1 text-xs sm:text-sm text-red-600 dark:!text-red-400">
                           {profileForm.formState.errors.website.message}
                         </p>
                       )}
@@ -475,7 +471,7 @@ export default function Settings() {
                   <div className="flex justify-end">
                     <button
                       type="submit"
-                      className="bg-indigo-600 text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm sm:text-base"
+                      className="bg-indigo-600 dark:bg-indigo-500 text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm sm:text-base"
                       disabled={profileForm.formState.isSubmitting}
                     >
                       {profileForm.formState.isSubmitting ? 'Aguarde...' : 'Salvar Alterações'}
@@ -488,62 +484,72 @@ export default function Settings() {
             {/* Billing Tab */}
             {activeTab === 'billing' && (
               <div className="space-y-4 sm:space-y-6">
-                <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200">
-                  <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-4 sm:mb-6">
+                <div className="bg-white dark:bg-gray-700 rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-gray-600">
+                  <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:!text-white mb-4 sm:mb-6">
                     Plano Atual
                   </h2>
-                  <div className="border border-indigo-200 rounded-lg p-4 sm:p-6 bg-indigo-50">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                      <div>
-                        <h3 className="text-base sm:text-lg font-semibold text-indigo-900">Plano Gratuito</h3>
-                        <p className="text-indigo-700 mt-1 text-sm sm:text-base">Perfeito para começar</p>
-                        <ul className="mt-3 sm:mt-4 space-y-1 sm:space-y-2 text-xs sm:text-sm text-indigo-800">
-                          <li>• Até 3 páginas de checkout</li>
-                          <li>• Personalização básica</li>
-                          <li>• Taxa de transação de 5%</li>
-                          <li>• Suporte por email</li>
-                        </ul>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-xl sm:text-2xl font-bold text-indigo-900">R$0</span>
-                        <p className="text-indigo-700 text-sm sm:text-base">/mês</p>
-                      </div>
-                    </div>
-                  </div>
+                  <div className="border border-indigo-200 dark:border-gray-600 rounded-lg p-4 sm:p-6 bg-indigo-100 dark:bg-gray-800">
+  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div>
+      <h3 className="text-base sm:text-lg font-semibold text-indigo-700 dark:text-indigo-200">
+        Plano Gratuito
+      </h3>
+      <p className="text-indigo-600 dark:text-gray-300 !important mt-1 text-sm sm:text-base">
+  Perfeito para começar
+</p>
+      <ul className="mt-3 sm:mt-4 space-y-1 sm:space-y-2 text-xs sm:text-sm text-indigo-800 dark:text-gray-200">
+        <li>• Até 3 páginas de checkout</li>
+        <li>• Personalização básica</li>
+        <li>• Taxa de transação de 5%</li>
+        <li>• Suporte por email</li>
+      </ul>
+    </div>
+    <div className="text-right">
+      <span className="text-xl sm:text-2xl font-bold text-indigo-700 dark:text-indigo-200">
+        R$0
+      </span>
+      <p className="text-indigo-600 dark:text-gray-300 text-sm sm:text-base">/mês</p>
+    </div>
+  </div>
+</div>
 
                   <div className="mt-4 sm:mt-6">
-                    <h3 className="text-sm sm:text-md font-semibold text-gray-900 mb-3 sm:mb-4">
+                    <h3 className="text-sm sm:text-md font-semibold text-gray-900 dark:!text-white mb-3 sm:mb-4">
                       Opções de Upgrade
                     </h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                      <div className="border border-gray-200 rounded-lg p-3 sm:p-4">
-                        <h4 className="font-semibold text-gray-900 text-sm sm:text-base">Plano Pro</h4>
-                        <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-2">
+                      <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-3 sm:p-4">
+                        <h4 className="font-semibold text-gray-900 dark:!text-white text-sm sm:text-base">
+                          Plano Pro
+                        </h4>
+                        <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:!text-white mt-2">
                           R$29<span className="text-xs sm:text-sm font-normal">/mês</span>
                         </p>
-                        <ul className="mt-3 sm:mt-4 space-y-1 text-xs sm:text-sm text-gray-600">
+                        <ul className="mt-3 sm:mt-4 space-y-1 text-xs sm:text-sm text-gray-600 dark:!text-gray-400">
                           <li>• Páginas de checkout ilimitadas</li>
                           <li>• Personalização avançada</li>
                           <li>• Taxa de transação de 3%</li>
                           <li>• Suporte prioritário</li>
                         </ul>
-                        <button className="w-full mt-3 sm:mt-4 bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors text-sm sm:text-base">
+                        <button className="w-full mt-3 sm:mt-4 bg-indigo-600 dark:bg-indigo-500 text-white py-2 rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 transition-colors text-sm sm:text-base">
                           Upgrade para Pro
                         </button>
                       </div>
 
-                      <div className="border border-gray-200 rounded-lg p-3 sm:p-4">
-                        <h4 className="font-semibold text-gray-900 text-sm sm:text-base">Empresarial</h4>
-                        <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-2">
+                      <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-3 sm:p-4">
+                        <h4 className="font-semibold text-gray-900 dark:!text-white text-sm sm:text-base">
+                          Empresarial
+                        </h4>
+                        <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:!text-white mt-2">
                           R$99<span className="text-xs sm:text-sm font-normal">/mês</span>
                         </p>
-                        <ul className="mt-3 sm:mt-4 space-y-1 text-xs sm:text-sm text-gray-600">
+                        <ul className="mt-3 sm:mt-4 space-y-1 text-xs sm:text-sm text-gray-600 dark:!text-gray-400">
                           <li>• Tudo do Pro</li>
                           <li>• Solução white-label</li>
                           <li>• Taxa de transação de 1%</li>
                           <li>• Suporte dedicado</li>
                         </ul>
-                        <button className="w-full mt-3 sm:mt-4 bg-gray-600 text-white py-2 rounded-lg hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors text-sm sm:text-base">
+                        <button className="w-full mt-3 sm:mt-4 bg-gray-600 dark:bg-gray-500 text-white py-2 rounded-lg hover:bg-gray-700 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-600 dark:focus:ring-gray-500 transition-colors text-sm sm:text-base">
                           Contatar Vendas
                         </button>
                       </div>
@@ -551,12 +557,12 @@ export default function Settings() {
                   </div>
                 </div>
 
-                <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200">
-                  <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-4 sm:mb-6">
+                <div className="bg-white dark:bg-gray-700 rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-gray-600">
+                  <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:!text-white mb-4 sm:mb-6">
                     Histórico de Cobrança
                   </h2>
-                  <div className="text-center py-6 sm:py-8 text-gray-500">
-                    <CreditCardIcon className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-3 sm:mb-4 text-gray-400" />
+                  <div className="text-center py-6 sm:py-8 text-gray-500 dark:!text-gray-400">
+                    <CreditCardIcon className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-3 sm:mb-4 text-gray-400 dark:!text-gray-500" />
                     <p className="text-sm sm:text-base">Nenhum histórico de cobrança ainda</p>
                     <p className="text-xs sm:text-sm">Suas faturas aparecerão aqui quando você fizer upgrade</p>
                   </div>
@@ -566,13 +572,13 @@ export default function Settings() {
 
             {/* Notifications Tab */}
             {activeTab === 'notifications' && (
-              <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200">
-                <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-4 sm:mb-6">
+              <div className="bg-white dark:bg-gray-700 rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-gray-600">
+                <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:!text-white mb-4 sm:mb-6">
                   Preferências de Notificação
                 </h2>
                 <div className="space-y-4 sm:space-y-6">
                   <div>
-                    <h3 className="text-sm sm:text-md font-semibold text-gray-900 mb-3 sm:mb-4">
+                    <h3 className="text-sm sm:text-md font-semibold text-gray-900 dark:!text-white mb-3 sm:mb-4">
                       Notificações por Email
                     </h3>
                     <div className="space-y-3 sm:space-y-4">
@@ -600,8 +606,12 @@ export default function Settings() {
                       ].map((notification) => (
                         <div key={notification.id} className="flex items-center justify-between py-2 sm:py-3">
                           <div>
-                            <h4 className="font-medium text-gray-900 text-sm sm:text-base">{notification.label}</h4>
-                            <p className="text-xs sm:text-sm text-gray-600">{notification.description}</p>
+                            <h4 className="font-medium text-gray-900 dark:!text-white text-sm sm:text-base">
+                              {notification.label}
+                            </h4>
+                            <p className="text-xs sm:text-sm text-gray-600 dark:!text-gray-400">
+                              {notification.description}
+                            </p>
                           </div>
                           <label className="relative inline-flex items-center cursor-pointer">
                             <input
@@ -612,15 +622,15 @@ export default function Settings() {
                               }
                               className="sr-only peer"
                             />
-                            <div className="w-10 h-5 sm:w-11 sm:h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 sm:after:h-5 sm:after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                            <div className="w-10 h-5 sm:w-11 sm:h-6 bg-gray-200 dark:bg-gray-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-300 dark:peer-focus:ring-indigo-400 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-200 dark:after:border-gray-600 after:border after:rounded-full after:h-4 after:w-4 sm:after:h-5 sm:after:w-5 after:transition-all peer-checked:bg-indigo-600 dark:peer-checked:bg-indigo-500"></div>
                           </label>
                         </div>
                       ))}
                     </div>
                   </div>
 
-                  <div className="border-t border-gray-200 pt-4 sm:pt-6">
-                    <h3 className="text-sm sm:text-md font-semibold text-gray-900 mb-3 sm:mb-4">
+                  <div className="border-t border-gray-200 dark:border-gray-600 pt-4 sm:pt-6">
+                    <h3 className="text-sm sm:text-md font-semibold text-gray-900 dark:!text-white mb-3 sm:mb-4">
                       Notificações Push
                     </h3>
                     <div className="space-y-3 sm:space-y-4">
@@ -638,8 +648,12 @@ export default function Settings() {
                       ].map((notification) => (
                         <div key={notification.id} className="flex items-center justify-between py-2 sm:py-3">
                           <div>
-                            <h4 className="font-medium text-gray-900 text-sm sm:text-base">{notification.label}</h4>
-                            <p className="text-xs sm:text-sm text-gray-600">{notification.description}</p>
+                            <h4 className="font-medium text-gray-900 dark:!text-white text-sm sm:text-base">
+                              {notification.label}
+                            </h4>
+                            <p className="text-xs sm:text-sm text-gray-600 dark:!text-gray-400">
+                              {notification.description}
+                            </p>
                           </div>
                           <label className="relative inline-flex items-center cursor-pointer">
                             <input
@@ -650,17 +664,17 @@ export default function Settings() {
                               }
                               className="sr-only peer"
                             />
-                            <div className="w-10 h-5 sm:w-11 sm:h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 sm:after:h-5 sm:after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                            <div className="w-10 h-5 sm:w-11 sm:h-6 bg-gray-200 dark:bg-gray-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-300 dark:peer-focus:ring-indigo-400 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-200 dark:after:border-gray-600 after:border after:rounded-full after:h-4 after:w-4 sm:after:h-5 sm:after:w-5 after:transition-all peer-checked:bg-indigo-600 dark:peer-checked:bg-indigo-500"></div>
                           </label>
                         </div>
                       ))}
                     </div>
                   </div>
 
-                  <div className="flex justify-end pt-4 sm:pt-6 border-t border-gray-200">
+                  <div className="flex justify-end pt-4 sm:pt-6 border-t border-gray-200 dark:border-gray-600">
                     <button
                       onClick={onNotificationSubmit}
-                      className="bg-indigo-600 text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors text-sm sm:text-base"
+                      className="bg-indigo-600 dark:bg-indigo-500 text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 transition-colors text-sm sm:text-base"
                     >
                       Salvar Preferências
                     </button>
@@ -672,57 +686,57 @@ export default function Settings() {
             {/* Security Tab */}
             {activeTab === 'security' && (
               <div className="space-y-4 sm:space-y-6">
-                <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200">
-                  <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-4 sm:mb-6">
+                <div className="bg-white dark:bg-gray-700 rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-gray-600">
+                  <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:!text-white mb-4 sm:mb-6">
                     Alterar Senha
                   </h2>
                   <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-4 sm:space-y-6">
                     <div>
-                      <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-xs sm:text-sm font-medium text-gray-900 dark:!text-white mb-2">
                         Senha Atual
                       </label>
                       <input
                         {...passwordForm.register('currentPassword')}
                         type="password"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:!text-gray-100"
                         placeholder="Digite sua senha atual"
                       />
                       {passwordForm.formState.errors.currentPassword && (
-                        <p className="mt-1 text-xs sm:text-sm text-red-600">
+                        <p className="mt-1 text-xs sm:text-sm text-red-600 dark:!text-red-400">
                           {passwordForm.formState.errors.currentPassword.message}
                         </p>
                       )}
                     </div>
 
                     <div>
-                      <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-xs sm:text-sm font-medium text-gray-900 dark:!text-white mb-2">
                         Nova Senha
                       </label>
                       <input
                         {...passwordForm.register('newPassword')}
                         type="password"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:!text-gray-100"
                         placeholder="Digite sua nova senha"
                       />
                       {passwordForm.formState.errors.newPassword && (
-                        <p className="mt-1 text-xs sm:text-sm text-red-600">
+                        <p className="mt-1 text-xs sm:text-sm text-red-600 dark:!text-red-400">
                           {passwordForm.formState.errors.newPassword.message}
                         </p>
                       )}
                     </div>
 
                     <div>
-                      <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-xs sm:text-sm font-medium text-gray-900 dark:!text-white mb-2">
                         Confirmar Nova Senha
                       </label>
                       <input
                         {...passwordForm.register('confirmPassword')}
                         type="password"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:!text-gray-100"
                         placeholder="Confirme sua nova senha"
                       />
                       {passwordForm.formState.errors.confirmPassword && (
-                        <p className="mt-1 text-xs sm:text-sm text-red-600">
+                        <p className="mt-1 text-xs sm:text-sm text-red-600 dark:!text-red-400">
                           {passwordForm.formState.errors.confirmPassword.message}
                         </p>
                       )}
@@ -731,7 +745,7 @@ export default function Settings() {
                     <div className="flex justify-end">
                       <button
                         type="submit"
-                        className="bg-indigo-600 text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm sm:text-base"
+                        className="bg-indigo-600 dark:bg-indigo-500 text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm sm:text-base"
                         disabled={passwordForm.formState.isSubmitting}
                       >
                         {passwordForm.formState.isSubmitting ? 'Aguarde...' : 'Atualizar Senha'}
@@ -740,52 +754,52 @@ export default function Settings() {
                   </form>
                 </div>
 
-                <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200">
-                  <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-4 sm:mb-6">
+                <div className="bg-white dark:bg-gray-700 rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-gray-600">
+                  <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:!text-white mb-4 sm:mb-6">
                     Autenticação de Dois Fatores
                   </h2>
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 bg-gray-50 rounded-lg gap-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 bg-gray-50 dark:bg-gray-800 rounded-lg gap-4">
                     <div className="flex items-center space-x-3">
-                      <ShieldCheckIcon className="h-6 w-6 sm:h-8 sm:w-8 text-gray-400" />
+                      <ShieldCheckIcon className="h-6 w-6 sm:h-8 sm:w-8 text-gray-400 dark:!text-gray-500" />
                       <div>
-                        <h3 className="font-medium text-gray-900 text-sm sm:text-base">
-                          Autenticação de Dois Fatores
-                        </h3>
-                        <p className="text-xs sm:text-sm text-gray-600">
-                          Adicione uma camada extra de segurança à sua conta
-                        </p>
+                        <h3 className="font-medium text-gray-900 dark:text-gray-200 text-sm sm:text-base">
+  Autenticação de Dois Fatores
+</h3>
+<p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300">
+  Adicione uma camada extra de segurança à sua conta
+</p>
                       </div>
                     </div>
-                    <button className="bg-indigo-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors text-sm sm:text-base">
+                    <button className="bg-indigo-600 dark:bg-indigo-500 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 transition-colors text-sm sm:text-base">
                       Ativar 2FA
                     </button>
                   </div>
                 </div>
 
-                <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200">
-                  <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-4 sm:mb-6">
+                <div className="bg-white dark:bg-gray-700 rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-gray-600">
+                  <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:!text-white mb-4 sm:mb-6">
                     Chaves da API
                   </h2>
                   <div className="space-y-3 sm:space-y-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 border border-gray-200 rounded-lg gap-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 border border-gray-200 dark:border-gray-600 rounded-lg gap-4">
                       <div className="flex items-center space-x-3">
-                        <KeyIcon className="h-5 w-5 sm:h-6 sm:w-6 text-gray-400" />
+                        <KeyIcon className="h-5 w-5 sm:h-6 sm:w-6 text-gray-400 dark:!text-gray-500" />
                         <div>
-                          <h3 className="font-medium text-gray-900 text-sm sm:text-base">
+                          <h3 className="font-medium text-gray-900 dark:!text-white text-sm sm:text-base">
                             Chave da API Webhook
                           </h3>
-                          <p className="text-xs sm:text-sm text-gray-600">
+                          <p className="text-xs sm:text-sm text-gray-600 dark:!text-gray-400">
                             Use esta chave para receber notificações webhook
                           </p>
                         </div>
                       </div>
-                      <button className="text-indigo-600 hover:text-indigo-700 font-medium text-sm sm:text-base">
+                      <button className="text-indigo-600 dark:!text-indigo-400 hover:text-indigo-700 dark:hover:!text-indigo-300 font-medium text-sm sm:text-base">
                         Gerar Chave
                       </button>
                     </div>
 
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 sm:p-4">
-                      <p className="text-yellow-800 text-xs sm:text-sm">
+                    <div className="bg-yellow-50 dark:bg-yellow-900 border border-yellow-200 dark:border-yellow-700 rounded-lg p-3 sm:p-4">
+                      <p className="text-yellow-800 dark:!text-yellow-200 text-xs sm:text-sm">
                         ⚠️ As chaves da API fornecem acesso à sua conta. Mantenha-as seguras e nunca as
                         compartilhe publicamente.
                       </p>
