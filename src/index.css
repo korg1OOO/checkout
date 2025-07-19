@@ -130,3 +130,95 @@ a.text-gray-700:hover {
 [data-theme="dark"] h3.dark\:text-gray-200 {
   color: #e5e7eb !important; /* Ensure gray-200 is applied in dark mode */
 }
+
+/* Ensure labels with text-gray-700 are white in dark mode */
+[data-theme="dark"] .text-gray-700 {
+  color: var(--text-color) !important; /* #f3f4f6 (text-gray-100) in dark mode */
+}
+
+/* Override bg-gray-50 in dark mode */
+[data-theme="dark"] .bg-gray-50 {
+  background-color: var(--sidebar-bg) !important; /* #374151 (bg-gray-700) in dark mode */
+}
+
+/* Ensure h3 text is visible in dark mode */
+[data-theme="dark"] h3.text-gray-900 {
+  color: var(--text-color) !important; /* #f3f4f6 (text-gray-100) in dark mode */
+}
+
+/* Ensure list item text is visible in dark mode */
+[data-theme="dark"] .text-gray-600 {
+  color: var(--text-secondary) !important; /* #d1d5db (text-gray-300) in dark mode */
+}
+
+/* Ensure the preview area retains light mode styles, even in dark mode */
+.preview-area {
+  background-color: #ffffff !important; /* Force white background (bg-white) */
+  color: #1f2937 !important; /* Force text-gray-900 for text */
+}
+
+/* Override specific child elements in the preview area */
+.preview-area .bg-gray-100 {
+  background-color: #f3f4f6 !important; /* Force bg-gray-100 for the header */
+}
+
+.preview-area .text-gray-600 {
+  color: #4b5563 !important; /* Force text-gray-600 for the header text */
+}
+
+.preview-area .bg-white {
+  background-color: #ffffff !important; /* Force bg-white for draggable elements */
+}
+
+.preview-area .border-gray-300 {
+  border-color: #d1d5db !important; /* Force border-gray-300 for borders */
+}
+
+.preview-area .text-gray-500 {
+  color: #6b7280 !important; /* Force text-gray-500 for placeholder text */
+}
+
+.preview-area .text-gray-700 {
+  color: #374151 !important; /* Force text-gray-700 for labels */
+}
+
+.preview-area .bg-indigo-100 {
+  background-color: #e0e7ff !important; /* Force bg-indigo-100 for dragging state */
+}
+
+.preview-area .border-indigo-500 {
+  border-color: #6366f1 !important; /* Force border-indigo-500 for dragging state */
+}
+
+.preview-area .bg-indigo-50 {
+  background-color: #eef2ff !important; /* Force bg-indigo-50 for dragging state */
+}
+
+.preview-area .text-indigo-600 {
+  color: #4f46e5 !important; /* Force text-indigo-600 for checkboxes */
+}
+
+.preview-area .text-red-600 {
+  color: #dc2626 !important; /* Force text-red-600 for delete button */
+}
+
+.preview-area .text-red-700 {
+  color: #b91c1c !important; /* Force text-red-700 for delete button hover */
+}
+
+.preview-area .text-gray-400 {
+  color: #9ca3af !important; /* Force text-gray-400 for drag handle */
+}
+
+/* Ensure product list and customer info form text retain light mode colors */
+.preview-area .text-base.font-semibold {
+  color: #1f2937 !important; /* Force text-gray-900 for headings */
+}
+
+.preview-area .text-sm {
+  color: #4b5563 !important; /* Force text-gray-600 for smaller text */
+}
+
+.preview-area .font-bold.text-sm {
+  color: #1f2937 !important; /* Force text-gray-900 for product prices */
+}

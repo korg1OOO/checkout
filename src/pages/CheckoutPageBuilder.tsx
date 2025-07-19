@@ -1319,24 +1319,24 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
         </div>
 
         {/* Preview Area */}
-        <div className="flex-1 border border-gray-300 rounded-lg overflow-hidden">
-          <div className="bg-gray-100 px-3 sm:px-4 py-2 text-xs sm:text-sm text-gray-600">
-            Visualização: {window.location.origin}/checkout/{watch('slug') || 'sua-url'}
-          </div>
-          <Droppable droppableId="layout">
-            {(provided, snapshot) => (
-              <div
-                {...provided.droppableProps}
-                ref={provided.innerRef}
-                className={`p-4 sm:p-8 min-h-[400px] border-2 ${
-                  snapshot.isDraggingOver ? 'border-indigo-500 bg-indigo-50' : 'border-gray-300'
-                }`}
-                style={{
-                  backgroundColor: theme.background_color,
-                  fontFamily: theme.font_family,
-                  color: theme.text_color,
-                }}
-              >
+        <div className="flex-1 border border-gray-300 rounded-lg overflow-hidden preview-area">
+  <div className="bg-gray-100 px-3 sm:px-4 py-2 text-xs sm:text-sm text-gray-600">
+    Visualização: {window.location.origin}/checkout/{watch('slug') || 'sua-url'}
+  </div>
+  <Droppable droppableId="layout">
+    {(provided, snapshot) => (
+      <div
+        {...provided.droppableProps}
+        ref={provided.innerRef}
+        className={`p-4 sm:p-8 min-h-[400px] border-2 ${
+          snapshot.isDraggingOver ? 'border-indigo-500 bg-indigo-50' : 'border-gray-300'
+        }`}
+        style={{
+          backgroundColor: '#ffffff', // Hardcode white instead of theme.background_color
+          fontFamily: theme.font_family,
+          color: '#1f2937', // Hardcode text-gray-900 instead of theme.text_color
+        }}
+      >
                 <div className="max-w-md mx-auto space-y-4">
                   {layout.length === 0 && (
                     <div className="text-center text-gray-500 py-8">
