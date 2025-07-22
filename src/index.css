@@ -19,8 +19,8 @@
 
 /* Dark theme */
 [data-theme="dark"] {
-  --background-color: #1f2937; /* bg-gray-800 */
-  --sidebar-bg: #374151; /* bg-gray-700 */
+  --background-color: #08080a; /* Updated background color */
+  --sidebar-bg: #141418; /* bg-gray-700 */
   --text-color: #f3f4f6; /* text-gray-100 */
   --text-secondary: #d1d5db; /* text-gray-300 */
   --border-color: #4b5563; /* border-gray-600 */
@@ -221,4 +221,74 @@ a.text-gray-700:hover {
 
 .preview-area .font-bold.text-sm {
   color: #1f2937 !important; /* Force text-gray-900 for product prices */
+}
+
+/* Add a class to style the specific div */
+.plan-card {
+  background-color: var(--sidebar-bg); /* Use sidebar background color */
+  color: #ffffff !important; /* Force white text for the div */
+  padding: 1rem; /* Optional: Add padding for better appearance */
+}
+
+/* Override text colors for child elements in both themes */
+.plan-card h3,
+.plan-card p,
+.plan-card ul,
+.plan-card li {
+  color: #ffffff !important; /* Force white text for all child elements */
+}
+
+/* Ensure dark mode text overrides are consistent */
+[data-theme="dark"] .plan-card h3,
+[data-theme="dark"] .plan-card p,
+[data-theme="dark"] .plan-card ul,
+[data-theme="dark"] .plan-card li {
+  color: #ffffff !important; /* Force white text in dark mode */
+}
+
+/* Ensure the checkout page retains its own theme, unaffected by dark mode */
+.checkout-page {
+  background-color: inherit !important;
+  color: inherit !important;
+}
+
+.checkout-page [data-theme="dark"],
+.checkout-page .dark\:bg-gray-800,
+.checkout-page .dark\:text-white,
+.checkout-page .dark\:text-gray-100,
+.checkout-page .dark\:text-gray-200,
+.checkout-page .dark\:text-gray-300,
+.checkout-page .dark\:border-gray-700,
+.checkout-page .dark\:bg-gray-700 {
+  background-color: inherit !important;
+  color: inherit !important;
+  border-color: inherit !important;
+}
+
+.checkout-page .text-gray-900,
+.checkout-page .text-gray-600,
+.checkout-page .text-gray-500 {
+  color: inherit !important;
+}
+
+.checkout-page .bg-gray-50,
+.checkout-page .bg-white {
+  background-color: inherit !important;
+}
+
+.checkout-page .border-gray-300,
+.checkout-page .border-gray-200 {
+  border-color: inherit !important;
+}
+
+.checkout-page .text-indigo-600,
+.checkout-page .bg-indigo-600 {
+  color: inherit !important;
+  background-color: inherit !important;
+}
+
+.checkout-page .text-base.font-semibold,
+.checkout-page .font-bold.text-sm,
+.checkout-page .text-sm {
+  color: inherit !important;
 }

@@ -488,15 +488,15 @@ export default function Settings() {
                   <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:!text-white mb-4 sm:mb-6">
                     Plano Atual
                   </h2>
-                  <div className="border border-indigo-200 dark:border-gray-600 rounded-lg p-4 sm:p-6 bg-indigo-100 dark:bg-gray-800">
+                  <div className="plan-card border border-indigo-200 dark:border-gray-600 rounded-lg p-4 sm:p-6">
   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
     <div>
       <h3 className="text-base sm:text-lg font-semibold text-indigo-700 dark:text-indigo-200">
         Plano Gratuito
       </h3>
       <p className="text-indigo-600 dark:text-gray-300 !important mt-1 text-sm sm:text-base">
-  Perfeito para começar
-</p>
+        Perfeito para começar
+      </p>
       <ul className="mt-3 sm:mt-4 space-y-1 sm:space-y-2 text-xs sm:text-sm text-indigo-800 dark:text-gray-200">
         <li>• Até 3 páginas de checkout</li>
         <li>• Personalização básica</li>

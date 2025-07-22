@@ -177,143 +177,153 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
 
   // Fetch existing page data
   useEffect(() => {
-    if (!user?.id) {
+  if (!user?.id) {
+    setLoading(false);
+    toast.error('Você precisa estar logado para acessar esta página');
+    navigate('/auth');
+    return;
+  }
+
+  if (!isEditing) {
+    // Initialize default layout for new pages
+    setLayout([
+      { id: `element-${Date.now()}-1`, type: 'title', content: { text: watchedTitle || 'Título da Página', style: { fontSize: '24px', fontWeight: 'bold', align: 'center' } }, order: 0 },
+      { id: `element-${Date.now()}-2`, type: 'description', content: { text: watchedDescription || 'Descrição da Página', style: { fontSize: '16px', align: 'center' } }, order: 1 },
+      { id: `element-${Date.now()}-3`, type: 'logo', content: { url: watchedLogoUrl || '', style: { align: 'center' } }, order: 2 },
+      { id: `element-${Date.now()}-4`, type: 'product_list', content: {}, order: 3 },
+      { id: `element-${Date.now()}-5`, type: 'customer_info_form', content: {}, order: 4 },
+      { id: `element-${Date.now()}-6`, type: 'button', content: { text: 'Finalizar Compra', style: { align: 'center' } }, order: 5 },
+    ]);
+    setLoading(false);
+    return;
+  }
+
+  const fetchPage = async () => {
+    try {
+      setLoading(true);
+      console.log('Fetching page with id:', id, 'for user:', user.id);
+      const { data, error } = await supabase
+        .from('checkout_pages')
+        .select('*')
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .single();
+
+      console.log('Supabase response:', { data, error });
+      if (error) {
+        if (error.code === 'PGRST116') {
+          throw new Error('Página não encontrada ou você não tem permissão');
+        } else if (error.code === '42501') {
+          throw new Error('Permissão negada. Verifique as políticas de acesso do banco de dados');
+        }
+        throw new Error(`Error fetching checkout page: ${error.message} (Code: ${error.code})`);
+      }
+
+      if (!data) {
+        throw new Error('Página não encontrada');
+      }
+
+      const sortedCustomFields = (data.custom_fields || []).map((field: CustomField, index: number) => ({
+        ...field,
+        order: field.order ?? index,
+      })).sort((a: CustomField, b: CustomField) => a.order - b.order);
+
+      const sortedProducts = (data.products || []).map((product: Product, index: number) => ({
+        ...product,
+        order: product.order ?? index,
+      })).sort((a: Product, b: Product) => a.order - b.order);
+
+      const sortedLayout = (data.layout || []).map((element: LayoutElement, index: number) => ({
+        ...element,
+        order: element.order ?? index,
+      })).sort((a: LayoutElement, b: LayoutElement) => a.order - b.order);
+
+      setCheckoutPage(data);
+      setTheme(data.theme || initialTheme);
+      setCustomFields(sortedCustomFields);
+      setProducts(sortedProducts);
+      setLayout(sortedLayout);
+      reset({
+        title: data.title,
+        slug: data.slug,
+        description: data.description || null,
+        logo_url: data.logo_url || null,
+        is_active: data.is_active,
+      });
+    } catch (error: any) {
+      console.error('Error fetching page:', error);
+      toast.error(error.message || 'Falha ao carregar página de checkout');
+      navigate('/checkout-pages');
+    } finally {
       setLoading(false);
-      toast.error('Você precisa estar logado para acessar esta página');
-      navigate('/auth');
-      return;
     }
+  };
 
-    if (isEditing && id) {
-      const fetchPage = async () => {
-        try {
-          setLoading(true);
-          const { data, error } = await supabase
-            .from('checkout_pages')
-            .select('*')
-            .eq('id', id)
-            .eq('user_id', user.id)
-            .single();
+  fetchPage();
+}, [id, isEditing, user?.id, navigate, reset]); // Removed theme, watchedTitle, watchedDescription, watchedLogoUrl
 
-          if (error) {
-            throw new Error(`Error fetching checkout page: ${error.message} (Code: ${error.code})`);
-          }
+  // Real-time subscription
+  useEffect(() => {
+  if (!user?.id || !isEditing || !id) return;
 
-          if (!data) {
-            throw new Error('Página não encontrada ou você não tem permissão');
-          }
-
-          const sortedCustomFields = (data.custom_fields || []).map((field: CustomField, index: number) => ({
+  const subscription = supabase
+    .channel(`checkout_page_${id}`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'checkout_pages',
+        filter: `id=eq.${id}`,
+      },
+      (payload) => {
+        console.log('Real-time update received:', payload);
+        if (payload.new.user_id === user.id) {
+          const sortedCustomFields = (payload.new.custom_fields || []).map((field: CustomField, index: number) => ({
             ...field,
             order: field.order ?? index,
           })).sort((a: CustomField, b: CustomField) => a.order - b.order);
 
-          const sortedProducts = (data.products || []).map((product: Product, index: number) => ({
+          const sortedProducts = (payload.new.products || []).map((product: Product, index: number) => ({
             ...product,
             order: product.order ?? index,
           })).sort((a: Product, b: Product) => a.order - b.order);
 
-          const sortedLayout = (data.layout || []).map((element: LayoutElement, index: number) => ({
+          const sortedLayout = (payload.new.layout || []).map((element: LayoutElement, index: number) => ({
             ...element,
             order: element.order ?? index,
           })).sort((a: LayoutElement, b: LayoutElement) => a.order - b.order);
 
-          setCheckoutPage(data);
-          setTheme(data.theme || theme);
+          setCheckoutPage(payload.new as CheckoutPage);
+          setTheme(payload.new.theme || theme);
           setCustomFields(sortedCustomFields);
           setProducts(sortedProducts);
           setLayout(sortedLayout);
           reset({
-            title: data.title,
-            slug: data.slug,
-            description: data.description || null,
-            logo_url: data.logo_url || null,
-            is_active: data.is_active,
+            title: payload.new.title,
+            slug: payload.new.slug,
+            description: payload.new.description || null,
+            logo_url: payload.new.logo_url || null,
+            is_active: payload.new.is_active,
           });
-        } catch (error: any) {
-          console.error('Error fetching page:', error);
-          toast.error(error.message || 'Falha ao carregar página de checkout');
-          navigate('/checkout-pages');
-        } finally {
-          setLoading(false);
         }
-      };
+      }
+    )
+    .subscribe((status, err) => {
+      console.log('Subscription status:', status, 'Error:', err);
+      if (err) {
+        console.error('Subscription error:', err);
+        toast.error('Falha ao configurar atualizações em tempo real');
+      }
+    });
 
-      fetchPage();
-    } else {
-      // Initialize default layout for new pages
-      setLayout([
-        { id: `element-${Date.now()}-1`, type: 'title', content: { text: watchedTitle || 'Título da Página', style: { fontSize: '24px', fontWeight: 'bold', align: 'center' } }, order: 0 },
-        { id: `element-${Date.now()}-2`, type: 'description', content: { text: watchedDescription || 'Descrição da Página', style: { fontSize: '16px', align: 'center' } }, order: 1 },
-        { id: `element-${Date.now()}-3`, type: 'logo', content: { url: watchedLogoUrl || '', style: { align: 'center' } }, order: 2 },
-        { id: `element-${Date.now()}-4`, type: 'product_list', content: {}, order: 3 },
-        { id: `element-${Date.now()}-5`, type: 'customer_info_form', content: {}, order: 4 },
-        { id: `element-${Date.now()}-6`, type: 'button', content: { text: 'Finalizar Compra', style: { align: 'center' } }, order: 5 },
-      ]);
-      setLoading(false);
-    }
-  }, [id, isEditing, user?.id, navigate, reset, theme, watchedTitle, watchedDescription, watchedLogoUrl]);
+  subscriptionRef.current = subscription;
 
-  // Real-time subscription
-  useEffect(() => {
-    if (!user?.id || !isEditing || !id) return;
-
-    const subscription = supabase
-      .channel('checkout_page_channel')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'checkout_pages',
-          filter: `id=eq.${id}`,
-        },
-        (payload) => {
-          if (payload.new.user_id === user.id) {
-            const sortedCustomFields = (payload.new.custom_fields || []).map((field: CustomField, index: number) => ({
-              ...field,
-              order: field.order ?? index,
-            })).sort((a: CustomField, b: CustomField) => a.order - b.order);
-
-            const sortedProducts = (payload.new.products || []).map((product: Product, index: number) => ({
-              ...product,
-              order: product.order ?? index,
-            })).sort((a: Product, b: Product) => a.order - b.order);
-
-            const sortedLayout = (payload.new.layout || []).map((element: LayoutElement, index: number) => ({
-              ...element,
-              order: element.order ?? index,
-            })).sort((a: LayoutElement, b: LayoutElement) => a.order - b.order);
-
-            setCheckoutPage(payload.new as CheckoutPage);
-            setTheme(payload.new.theme || theme);
-            setCustomFields(sortedCustomFields);
-            setProducts(sortedProducts);
-            setLayout(sortedLayout);
-            reset({
-              title: payload.new.title,
-              slug: payload.new.slug,
-              description: payload.new.description || null,
-              logo_url: payload.new.logo_url || null,
-              is_active: payload.new.is_active,
-            });
-          }
-        }
-      )
-      .subscribe((status, err) => {
-        console.log('Subscription status:', status, 'Error:', err);
-        if (err) {
-          console.error('Subscription error:', err);
-          toast.error('Falha ao configurar atualizações em tempo real');
-        }
-      });
-
-    subscriptionRef.current = subscription;
-
-    return () => {
-      subscriptionRef.current?.unsubscribe();
-    };
-  }, [user?.id, isEditing, id, reset, theme]);
+  return () => {
+    console.log('Unsubscribing from channel:', `checkout_page_${id}`);
+    subscriptionRef.current?.unsubscribe();
+  };
+}, [user?.id, isEditing, id, reset, theme]);
 
   // Handle drag end for layout
   const onDragEnd = (result: DropResult) => {
@@ -1737,33 +1747,32 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
 )}
 
             {/* Action Buttons */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pt-4 sm:pt-6 border-t border-gray-200 gap-4">
-              <button
-                type="button"
-                onClick={() => navigate('/checkout-pages')}
-                className="px-3 sm:px-4 py-2 text-gray-700 hover:text-gray-900 transition-colors text-sm sm:text-base"
-              >
-                Cancelar
-              </button>
-              <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-4">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('preview')}
-                  className="inline-flex items-center space-x-2 px-3 sm:px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm sm:text-base"
-                >
-                  <EyeIcon className="h-4 w-4" />
-                  <span>Visualizar</span>
-                </button>
-                <button
-                  type="submit"
-                  disabled={checkingSlug}
-                  className="inline-flex items-center space-x-2 bg-indigo-600 text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-indigo-700 transition-colors disabled:bg-gray-400 text-sm sm:text-base"
-                >
-                  <BookmarkIcon className="h-4 w-4" />
-                  <span>{isEditing ? 'Atualizar Página' : 'Criar Página'}</span>
-                </button>
-              </div>
-            </div>
+            <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-4">
+  <button
+    type="button"
+    onClick={() => navigate(`/checkout/${watch('slug')}`)}
+    className="inline-flex items-center space-x-2 px-3 sm:px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm sm:text-base"
+  >
+    <EyeIcon className="h-4 w-4" />
+    <span>Testar Link</span>
+  </button>
+  <button
+    type="button"
+    onClick={() => setActiveTab('preview')}
+    className="inline-flex items-center space-x-2 px-3 sm:px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm sm:text-base"
+  >
+    <EyeIcon className="h-4 w-4" />
+    <span>Visualizar</span>
+  </button>
+  <button
+    type="submit"
+    disabled={checkingSlug}
+    className="inline-flex items-center space-x-2 bg-indigo-600 text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-indigo-700 transition-colors disabled:bg-gray-400 text-sm sm:text-base"
+  >
+    <BookmarkIcon className="h-4 w-4" />
+    <span>{isEditing ? 'Atualizar Página' : 'Criar Página'}</span>
+  </button>
+</div>
           </form>
         </div>
       </div>

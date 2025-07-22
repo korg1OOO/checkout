@@ -95,36 +95,55 @@ export default function CheckoutPages() {
   };
 
   const handleDuplicate = async (page: CheckoutPage) => {
-    if (!user) {
-      toast.error('You must be logged in to duplicate a page');
-      return;
-    }
+  if (!user) {
+    toast.error('You must be logged in to duplicate a page');
+    return;
+  }
 
-    try {
-      const newPage = {
-        ...page,
-        title: `${page.title} (Copy)`,
-        slug: `${page.slug}-${Date.now()}`, // Ensure unique slug
-        user_id: user.id,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
+  try {
+    const { id, ...pageWithoutId } = page; // Remove the id field
+    const newPage = {
+      ...pageWithoutId,
+      title: `${page.title} (Copy)`,
+      slug: `${page.slug}-${Date.now()}`, // Ensure unique slug
+      user_id: user.id,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      theme: page.theme || {
+        primary_color: '#3B82F6',
+        secondary_color: '#6B7280',
+        background_color: '#FFFFFF',
+        text_color: '#1F2937',
+        font_family: 'Inter, sans-serif',
+        border_radius: '0.5rem',
+        button_style: 'rounded',
+      },
+      custom_fields: page.custom_fields || [],
+      products: page.products || [],
+      layout: page.layout || [],
+    };
 
-      const { error } = await supabase
-        .from('checkout_pages')
-        .insert(newPage);
+    console.log('Attempting to duplicate page:', JSON.stringify(newPage, null, 2));
+    const { error } = await supabase
+      .from('checkout_pages')
+      .insert(newPage);
 
-      if (error) {
-        throw new Error(`Error duplicating page: ${error.message}`);
+    if (error) {
+      console.error('Supabase error:', JSON.stringify(error, null, 2));
+      if (error.code === '23505') {
+        toast.error('Este slug já está em uso. Escolha outro.');
+        return;
       }
-
-      toast.success(`"${page.title}" duplicated successfully!`);
-      fetchCheckoutPages(); // Refresh data
-    } catch (error) {
-      console.error('Error duplicating page:', error);
-      toast.error('Failed to duplicate page');
+      throw new Error(`Error duplicating page: ${error.message} (Code: ${error.code})`);
     }
-  };
+
+    toast.success(`"${page.title}" duplicated successfully!`);
+    fetchCheckoutPages(); // Refresh data
+  } catch (error: any) {
+    console.error('Error duplicating page:', error);
+    toast.error(error.message || 'Failed to duplicate page');
+  }
+};
 
   const handleDelete = async (page: CheckoutPage) => {
     if (!user) {
