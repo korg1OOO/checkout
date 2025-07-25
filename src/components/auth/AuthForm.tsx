@@ -4,24 +4,28 @@ import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { useAuth } from '../../contexts/AuthContext';
 import { CreditCardIcon } from '@heroicons/react/24/outline';
+import toast from 'react-hot-toast';
 
 const signInSchema = yup.object({
-  email: yup.string().email('Invalid email').required('Email is required'),
-  password: yup.string().min(6, 'Password must be at least 6 characters').required('Password is required'),
+  email: yup.string().email('Email inválido').required('Email é obrigatório'),
+  password: yup.string().min(6, 'A senha deve ter pelo menos 6 caracteres').required('Senha é obrigatória'),
+  totpCode: yup.string().matches(/^\d{6}$/, 'O código TOTP deve ser um número de 6 dígitos').optional(),
 });
 
 const signUpSchema = yup.object({
-  name: yup.string().required('Name is required'),
-  email: yup.string().email('Invalid email').required('Email is required'),
-  password: yup.string().min(6, 'Password must be at least 6 characters').required('Password is required'),
-  confirmPassword: yup.string()
-    .oneOf([yup.ref('password')], 'Passwords must match')
-    .required('Confirm password is required'),
+  name: yup.string().required('Nome é obrigatório'),
+  email: yup.string().email('Email inválido').required('Email é obrigatório'),
+  password: yup.string().min(6, 'A senha deve ter pelo menos 6 caracteres').required('Senha é obrigatória'),
+  confirmPassword: yup
+    .string()
+    .oneOf([yup.ref('password')], 'As senhas devem coincidir')
+    .required('Confirmação de senha é obrigatória'),
 });
 
 interface SignInData {
   email: string;
   password: string;
+  totpCode?: string;
 }
 
 interface SignUpData extends SignInData {
@@ -31,13 +35,14 @@ interface SignUpData extends SignInData {
 
 export default function AuthForm() {
   const [isSignUp, setIsSignUp] = useState(false);
+  const [requires2FA, setRequires2FA] = useState(false);
   const { signIn, signUp } = useAuth();
 
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-    reset
+    reset,
   } = useForm({
     resolver: yupResolver(isSignUp ? signUpSchema : signInSchema),
   });
@@ -47,16 +52,27 @@ export default function AuthForm() {
       if (isSignUp) {
         const signUpData = data as SignUpData;
         await signUp(signUpData.email, signUpData.password, signUpData.name);
+        reset();
       } else {
-        await signIn(data.email, data.password);
+        try {
+          await signIn(data.email, data.password, data.totpCode);
+          reset();
+        } catch (error: any) {
+          if (error.message === 'Código TOTP é necessário para autenticação') {
+            setRequires2FA(true);
+          } else {
+            throw error;
+          }
+        }
       }
-    } catch (error) {
-      // Error handling is done in the auth context
+    } catch (error: any) {
+      // Error handling is done in the auth context, but we can customize the toast here if needed
     }
   };
 
   const toggleMode = () => {
     setIsSignUp(!isSignUp);
+    setRequires2FA(false);
     reset();
   };
 
@@ -138,6 +154,23 @@ export default function AuthForm() {
                 )}
               </div>
             )}
+
+            {requires2FA && (
+              <div>
+                <label htmlFor="totpCode" className="block text-sm font-medium text-gray-700">
+                  Código TOTP
+                </label>
+                <input
+                  {...register('totpCode')}
+                  type="text"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="Digite o código de 6 dígitos"
+                />
+                {errors.totpCode && (
+                  <p className="mt-1 text-sm text-red-600">{errors.totpCode.message}</p>
+                )}
+              </div>
+            )}
           </div>
 
           <div>
@@ -154,12 +187,11 @@ export default function AuthForm() {
             <button
               type="button"
               onClick={toggleMode}
-              className="text-sm text-indigo-600 hover:text-indigo-500"
+              className="text-sm text-indigo-600 hover:text-indigo-700"
             >
-              {isSignUp 
-                ? 'Já tem uma conta? Entre' 
-                : "Não tem uma conta? Cadastre-se"
-              }
+              {isSignUp
+                ? 'Já tem uma conta? Entre'
+                : 'Não tem uma conta? Cadastre-se'}
             </button>
           </div>
         </form>

@@ -1,3 +1,4 @@
+// src/components/Layout.tsx
 import React, { useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -14,6 +15,7 @@ import {
   SunIcon,
   MoonIcon,
 } from '@heroicons/react/24/outline';
+import { SidebarProvider } from '../contexts/SidebarContext';
 
 export default function Layout() {
   const { user, signOut } = useAuth();
@@ -21,6 +23,9 @@ export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  const toggleSidebar = () => setIsSidebarOpen((prev) => !prev);
+  const closeSidebar = () => setIsSidebarOpen(false);
 
   const navigation = [
     { name: 'Painel', href: '/dashboard', icon: HomeIcon },
@@ -39,7 +44,7 @@ export default function Layout() {
       {/* Mobile Menu Button */}
       <button
         className="md:hidden fixed top-4 left-4 z-50 p-2 bg-white dark:bg-gray-700 rounded-md shadow-md"
-        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+        onClick={toggleSidebar}
       >
         {isSidebarOpen ? (
           <XMarkIcon className="h-6 w-6 text-gray-900 dark:text-gray-100" />
@@ -50,9 +55,9 @@ export default function Layout() {
 
       {/* Sidebar */}
       <div
-        className={`fixed inset-y-0 left-0 z-40 w-64 bg-white dark:bg-gray-700 shadow-lg transform md:transform-none transition-transform duration-300 ease-in-out ${
+        className={`fixed inset-y-0 left-0 z-40 w-64 bg-white dark:bg-gray-700 shadow-lg transform transition-transform duration-300 ease-in-out md:translate-x-0 ${
           isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        } md:translate-x-0`}
+        }`}
       >
         <div className="flex h-16 items-center justify-center border-b border-gray-200 dark:border-gray-600">
           <Link to="/dashboard" className="flex items-center space-x-2">
@@ -74,7 +79,7 @@ export default function Layout() {
                         ? 'bg-indigo-100 dark:bg-gray-600 text-indigo-700 dark:text-indigo-200'
                         : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'
                     }`}
-                    onClick={() => setIsSidebarOpen(false)}
+                    onClick={closeSidebar}
                   >
                     <item.icon className="h-5 w-5" />
                     <span>{item.name}</span>
@@ -123,7 +128,7 @@ export default function Layout() {
       </div>
 
       {/* Main content */}
-      <div className={`transition-all duration-300 ${isSidebarOpen ? 'md:pl-64' : 'pl-0 md:pl-64'}`}>
+      <div className="md:pl-64 transition-all duration-300">
         <header className="bg-white dark:bg-gray-700 shadow-sm border-b border-gray-200 dark:border-gray-600">
           <div className="px-4 sm:px-6 py-4">
             <div className="flex items-center justify-between flex-wrap gap-4">
@@ -142,7 +147,9 @@ export default function Layout() {
         </header>
 
         <main className="p-4 sm:p-6">
-          <Outlet />
+          <SidebarProvider toggleSidebar={toggleSidebar} closeSidebar={closeSidebar}>
+            <Outlet />
+          </SidebarProvider>
         </main>
       </div>
     </div>

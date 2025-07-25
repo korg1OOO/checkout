@@ -8,7 +8,7 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   signUp: (email: string, password: string, name: string) => Promise<void>;
-  signIn: (email: string, password: string) => Promise<void>;
+  signIn: (email: string, password: string, totpCode?: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshSession: () => Promise<void>;
 }
@@ -46,7 +46,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(newSession);
       setUser(newSession?.user ?? null);
       if (event === 'USER_UPDATED') {
-        // Force refresh to ensure latest user data
         refreshSession().catch((error) => {
           console.error('Error refreshing session after USER_UPDATED:', error);
           toast.error('Erro ao atualizar dados do usuário');
@@ -79,16 +78,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (email: string, password: string, totpCode?: string) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      // Initial sign-in with email and password
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
-      if (error) {
-        console.error('Sign-in error:', error);
-        throw new Error(error.message);
+
+      if (authError) {
+        console.error('Sign-in error:', authError);
+        throw new Error(authError.message);
       }
+
+      // Check if 2FA is enabled
+      const { data: mfaData, error: mfaError } = await supabase.auth.mfa.listFactors();
+      if (mfaError) {
+        console.error('MFA listFactors error:', mfaError);
+        throw new Error('Erro ao verificar status de 2FA');
+      }
+
+      const totpFactor = mfaData?.totp?.find((f) => f.status === 'verified');
+      if (totpFactor && !totpCode) {
+        throw new Error('Código TOTP é necessário para autenticação');
+      }
+
+      if (totpFactor && totpCode) {
+        const { data: challengeData, error: challengeError } = await supabase.auth.mfa.challenge({
+          factorId: totpFactor.id,
+        });
+
+        if (challengeError) {
+          console.error('MFA challenge error:', challengeError);
+          throw new Error('Erro ao criar desafio de 2FA');
+        }
+
+        const { error: verifyError } = await supabase.auth.mfa.verify({
+          factorId: totpFactor.id,
+          code: totpCode,
+        });
+
+        if (verifyError) {
+          console.error('MFA verify error:', verifyError);
+          throw new Error('Código TOTP inválido');
+        }
+      }
+
       await refreshSession();
       toast.success('Login realizado com sucesso!');
     } catch (error: any) {

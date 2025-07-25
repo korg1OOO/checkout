@@ -1,19 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../contexts/AuthContext';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
+import { QRCodeCanvas } from 'qrcode.react';
+import { supabase } from '../lib/supabase';
+import toast from 'react-hot-toast';
+import { useAuth } from '../contexts/AuthContext';
+import { useSidebar } from '../contexts/SidebarContext';
 import {
   UserIcon,
   CreditCardIcon,
   BellIcon,
   ShieldCheckIcon,
   KeyIcon,
-  Bars3Icon,
-  XMarkIcon,
 } from '@heroicons/react/24/outline';
-import { supabase } from '../lib/supabase';
-import toast from 'react-hot-toast';
 
 const profileSchema = yup.object({
   name: yup.string().required('Nome é obrigatório'),
@@ -29,6 +29,13 @@ const passwordSchema = yup.object({
     .string()
     .oneOf([yup.ref('newPassword')], 'As senhas devem coincidir')
     .required('Confirmação de senha é obrigatória'),
+});
+
+const totpSchema = yup.object({
+  totpCode: yup
+    .string()
+    .matches(/^\d{6}$/, 'O código TOTP deve ser um número de 6 dígitos')
+    .required('O código TOTP é obrigatório'),
 });
 
 interface ProfileData {
@@ -55,8 +62,8 @@ interface NotificationPreferences {
 
 export default function Settings() {
   const { user, session, loading, refreshSession } = useAuth();
+  const { closeSidebar } = useSidebar();
   const [activeTab, setActiveTab] = useState('profile');
-  const [isNavOpen, setIsNavOpen] = useState(false);
   const [notificationPrefs, setNotificationPrefs] = useState<NotificationPreferences>({
     new_orders: true,
     payment_received: true,
@@ -66,6 +73,10 @@ export default function Settings() {
     mobile_notifications: false,
   });
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
+  const [is2FAEnabled, setIs2FAEnabled] = useState(false);
+  const [totpSecret, setTotpSecret] = useState<string | null>(null);
+  const [qrCodeUri, setQrCodeUri] = useState<string | null>(null);
+  const [show2FAModal, setShow2FAModal] = useState(false);
 
   const profileForm = useForm<ProfileData>({
     resolver: yupResolver(profileSchema),
@@ -79,6 +90,10 @@ export default function Settings() {
 
   const passwordForm = useForm<PasswordData>({
     resolver: yupResolver(passwordSchema),
+  });
+
+  const totpForm = useForm<{ totpCode: string }>({
+    resolver: yupResolver(totpSchema),
   });
 
   useEffect(() => {
@@ -98,43 +113,80 @@ export default function Settings() {
         profileForm.setValue('email', refreshedUser?.email || '');
         setPendingEmail(refreshedUser?.new_email || null);
 
-        const { data: profileData, error: profileError } = await supabase
+        // Fetch or initialize user_profiles
+        let { data: profileData, error: profileError } = await supabase
           .from('user_profiles')
           .select('company, website')
           .eq('user_id', user.id)
-          .single();
+          .maybeSingle();
 
         if (profileError && profileError.code !== 'PGRST116') {
           console.error('Profile fetch error:', profileError);
           throw new Error(`Erro ao buscar perfil: ${profileError.message}`);
         }
 
-        if (profileData) {
-          profileForm.setValue('company', profileData.company || '');
-          profileForm.setValue('website', profileData.website || '');
+        if (!profileData) {
+          const { error: insertError } = await supabase
+            .from('user_profiles')
+            .insert({ user_id: user.id, company: null, website: null });
+          if (insertError) {
+            console.error('Profile insert error:', insertError);
+            throw new Error(`Erro ao criar perfil: ${insertError.message}`);
+          }
+          profileData = { company: null, website: null };
         }
 
-        const { data: prefsData, error: prefsError } = await supabase
+        profileForm.setValue('company', profileData.company || '');
+        profileForm.setValue('website', profileData.website || '');
+
+        // Fetch or initialize user_preferences
+        let { data: prefsData, error: prefsError } = await supabase
           .from('user_preferences')
           .select('*')
           .eq('user_id', user.id)
-          .single();
+          .maybeSingle();
 
         if (prefsError && prefsError.code !== 'PGRST116') {
           console.error('Preferences fetch error:', prefsError);
           throw new Error(`Erro ao buscar preferências: ${prefsError.message}`);
         }
 
-        if (prefsData) {
-          setNotificationPrefs({
-            new_orders: prefsData.new_orders ?? true,
-            payment_received: prefsData.payment_received ?? true,
-            weekly_reports: prefsData.weekly_reports ?? true,
-            product_updates: prefsData.product_updates ?? true,
-            browser_notifications: prefsData.browser_notifications ?? false,
-            mobile_notifications: prefsData.mobile_notifications ?? false,
-          });
+        if (!prefsData) {
+          const defaultPrefs = {
+            user_id: user.id,
+            new_orders: true,
+            payment_received: true,
+            weekly_reports: true,
+            product_updates: true,
+            browser_notifications: false,
+            mobile_notifications: false,
+          };
+          const { error: insertError } = await supabase
+            .from('user_preferences')
+            .insert(defaultPrefs);
+          if (insertError) {
+            console.error('Preferences insert error:', insertError);
+            throw new Error(`Erro ao criar preferências: ${insertError.message}`);
+          }
+          prefsData = defaultPrefs;
         }
+
+        setNotificationPrefs({
+          new_orders: prefsData.new_orders ?? true,
+          payment_received: prefsData.payment_received ?? true,
+          weekly_reports: prefsData.weekly_reports ?? true,
+          product_updates: prefsData.product_updates ?? true,
+          browser_notifications: prefsData.browser_notifications ?? false,
+          mobile_notifications: prefsData.mobile_notifications ?? false,
+        });
+
+        // Check 2FA status
+        const { data: mfaData, error: mfaError } = await supabase.auth.mfa.listFactors();
+        if (mfaError) {
+          console.error('MFA listFactors error:', mfaError);
+          throw new Error('Erro ao verificar status de 2FA');
+        }
+        setIs2FAEnabled(!!mfaData?.totp?.find((factor) => factor.status === 'verified'));
       } catch (error: any) {
         console.error('Erro ao carregar dados:', error);
         toast.error(error.message || 'Falha ao carregar perfil ou preferências');
@@ -298,6 +350,151 @@ export default function Settings() {
     setNotificationPrefs((prev) => ({ ...prev, [key]: value }));
   };
 
+  const enable2FA = async () => {
+    if (!user || !session) {
+      toast.error('Você precisa estar logado para ativar 2FA');
+      return;
+    }
+
+    try {
+      // Ensure session is valid
+      const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !currentSession) {
+        console.error('Session error:', sessionError);
+        throw new Error('Sessão inválida. Faça login novamente.');
+      }
+
+      // Clean up all existing TOTP factors (verified and unverified) to ensure a fresh start
+      const { data: factorsData, error: factorsError } = await supabase.auth.mfa.listFactors();
+      if (factorsError) {
+        console.error('MFA listFactors error:', factorsError);
+        throw new Error('Erro ao buscar fatores de 2FA');
+      }
+
+      const allFactors = factorsData?.totp || [];
+      for (const factor of allFactors) {
+        console.log('Removing factor:', factor);
+        await supabase.auth.mfa.unenroll({ factorId: factor.id });
+      }
+
+      // Enroll new TOTP factor
+      const { data, error } = await supabase.auth.mfa.enroll({
+        factorType: 'totp',
+        issuer: 'CheckoutPro',
+        friendlyName: `CheckoutPro:${user.email}-${Date.now()}`, // Unique friendly name with timestamp
+      });
+
+      if (error) {
+        console.error('2FA enroll error:', error);
+        throw new Error('Erro ao iniciar configuração de 2FA');
+      }
+
+      const { id: factorId, totp_secret } = data;
+      console.log('New TOTP factor:', { factorId, totp_secret });
+
+      setTotpSecret(totp_secret);
+
+      // Construct TOTP URI with proper encoding
+      const encodedEmail = encodeURIComponent(user.email);
+      const encodedIssuer = encodeURIComponent('CheckoutPro');
+      const totpUri = `otpauth://totp/${encodedIssuer}:${encodedEmail}?secret=${totp_secret}&issuer=${encodedIssuer}&algorithm=SHA1&digits=6&period=30`;
+      console.log('Generated TOTP URI:', totpUri);
+      setQrCodeUri(totpUri);
+      setShow2FAModal(true);
+    } catch (error: any) {
+      console.error('Erro ao configurar 2FA:', error);
+      toast.error(error.message || 'Falha ao configurar 2FA');
+    }
+  };
+
+  const verifyTotpCode = async (data: { totpCode: string }) => {
+    if (!user || !session || !totpSecret) {
+      toast.error('Sessão inválida para verificar 2FA');
+      return;
+    }
+
+    try {
+      const { data: factorsData, error: factorsError } = await supabase.auth.mfa.listFactors();
+      if (factorsError) {
+        console.error('MFA listFactors error:', factorsError);
+        throw new Error('Erro ao buscar fatores de 2FA');
+      }
+
+      const factor = factorsData?.totp?.find((f) => f.status === 'unverified' && f.friendly_name.includes(`CheckoutPro:${user.email}`));
+      if (!factor) {
+        throw new Error('Nenhum fator TOTP encontrado');
+      }
+
+      console.log('Verifying factor:', factor);
+
+      const { data: challengeData, error: challengeError } = await supabase.auth.mfa.challenge({
+        factorId: factor.id,
+      });
+
+      if (challengeError) {
+        console.error('MFA challenge error:', challengeError);
+        throw new Error('Erro ao criar desafio de 2FA');
+      }
+
+      const { error: verifyError } = await supabase.auth.mfa.verify({
+        factorId: factor.id,
+        code: data.totpCode,
+      });
+
+      if (verifyError) {
+        console.error('MFA verify error:', verifyError);
+        throw new Error('Código TOTP inválido');
+      }
+
+      setIs2FAEnabled(true);
+      setShow2FAModal(false);
+      setTotpSecret(null);
+      setQrCodeUri(null);
+      totpForm.reset();
+      toast.success('2FA ativado com sucesso!');
+    } catch (error: any) {
+      console.error('Erro ao verificar TOTP:', error);
+      toast.error(error.message || 'Código TOTP inválido');
+    }
+  };
+
+  const disable2FA = async () => {
+    if (!user || !session) {
+      toast.error('Você precisa estar logado para desativar 2FA');
+      return;
+    }
+
+    try {
+      const { data: factorsData, error: factorsError } = await supabase.auth.mfa.listFactors();
+      if (factorsError) {
+        console.error('MFA listFactors error:', factorsError);
+        throw new Error('Erro ao buscar fatores de 2FA');
+      }
+
+      const factor = factorsData?.totp?.find((f) => f.status === 'verified' && f.friendly_name.includes(`CheckoutPro:${user.email}`));
+      if (!factor) {
+        throw new Error('Nenhum fator 2FA ativo encontrado');
+      }
+
+      console.log('Disabling factor:', factor);
+
+      const { error: unenrollError } = await supabase.auth.mfa.unenroll({
+        factorId: factor.id,
+      });
+
+      if (unenrollError) {
+        console.error('MFA unenroll error:', unenrollError);
+        throw new Error('Erro ao desativar 2FA');
+      }
+
+      setIs2FAEnabled(false);
+      toast.success('2FA desativado com sucesso!');
+    } catch (error: any) {
+      console.error('Erro ao desativar 2FA:', error);
+      toast.error(error.message || 'Falha ao desativar 2FA');
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -330,18 +527,6 @@ export default function Settings() {
 
   return (
     <div className="min-h-screen px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-      {/* Mobile Menu Button */}
-      <button
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white dark:bg-gray-700 rounded-md shadow-md"
-        onClick={() => setIsNavOpen(!isNavOpen)}
-      >
-        {isNavOpen ? (
-          <XMarkIcon className="h-6 w-6 text-gray-900 dark:!text-white" />
-        ) : (
-          <Bars3Icon className="h-6 w-6 text-gray-900 dark:!text-white" />
-        )}
-      </button>
-
       <div className="max-w-4xl mx-auto">
         <div className="mb-6 sm:mb-8">
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:!text-white">
@@ -353,21 +538,16 @@ export default function Settings() {
         </div>
 
         <div className="flex flex-col lg:flex-row lg:gap-8">
-          {/* Sidebar Navigation */}
-          <div
-            className={`lg:w-64 bg-white dark:bg-gray-700 lg:bg-transparent lg:dark:bg-transparent rounded-xl lg:rounded-none shadow-sm lg:shadow-none border lg:border-none border-gray-200 dark:border-gray-600 lg:sticky lg:top-4 transform transition-transform duration-300 ease-in-out ${
-              isNavOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-            } fixed inset-y-0 left-0 z-40 lg:static w-64 p-4 lg:p-0`}
-          >
-            <nav className="space-y-2">
+          <div className="lg:w-64">
+            <nav className="flex flex-row lg:flex-col overflow-x-auto lg:overflow-x-visible space-x-2 lg:space-x-0 lg:space-y-2 mb-4 lg:mb-0">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => {
                     setActiveTab(tab.id);
-                    setIsNavOpen(false);
+                    closeSidebar();
                   }}
-                  className={`w-full flex items-center space-x-3 px-3 py-2 text-sm sm:text-base font-medium rounded-lg transition-colors ${
+                  className={`flex items-center space-x-3 px-3 py-2 text-sm sm:text-base font-medium rounded-lg transition-colors whitespace-nowrap ${
                     activeTab === tab.id
                       ? 'bg-indigo-100 dark:bg-gray-600 text-indigo-700 dark:!text-indigo-200 border border-indigo-200 dark:border-gray-600'
                       : 'text-gray-700 dark:!text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'
@@ -380,18 +560,16 @@ export default function Settings() {
             </nav>
           </div>
 
-          {/* Main Content */}
           <div className="flex-1 mt-4 lg:mt-0">
-            {/* Profile Tab */}
             {activeTab === 'profile' && (
               <div className="bg-white dark:bg-gray-700 rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-gray-600">
-                <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:!text-white border-red-500 mb-4 sm:mb-6">
+                <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:!text-white mb-4 sm:mb-6">
                   Informações do Perfil
                 </h2>
                 <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} className="space-y-4 sm:space-y-6">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6">
                     <div>
-                      <label className="block text-xs sm:text-sm font-medium text-gray-900 dark:!text-white border-red-500 mb-2">
+                      <label className="block text-xs sm:text-sm font-medium text-gray-900 dark:!text-white mb-2">
                         Nome Completo
                       </label>
                       <input
@@ -408,7 +586,7 @@ export default function Settings() {
                     </div>
 
                     <div>
-                      <label className="block text-xs sm:text-sm font-medium text-gray-900 dark:!text-white border-red-500 mb-2">
+                      <label className="block text-xs sm:text-sm font-medium text-gray-900 dark:!text-white mb-2">
                         Endereço de Email
                       </label>
                       <input
@@ -439,7 +617,7 @@ export default function Settings() {
                     </div>
 
                     <div>
-                      <label className="block text-xs sm:text-sm font-medium text-gray-900 dark:!text-white border-red-500 mb-2">
+                      <label className="block text-xs sm:text-sm font-medium text-gray-900 dark:!text-white mb-2">
                         Empresa (Opcional)
                       </label>
                       <input
@@ -451,7 +629,7 @@ export default function Settings() {
                     </div>
 
                     <div>
-                      <label className="block text-xs sm:text-sm font-medium text-gray-900 dark:!text-white border-red-500 mb-2">
+                      <label className="block text-xs sm:text-sm font-medium text-gray-900 dark:!text-white mb-2">
                         Website (Opcional)
                       </label>
                       <input
@@ -481,7 +659,6 @@ export default function Settings() {
               </div>
             )}
 
-            {/* Billing Tab */}
             {activeTab === 'billing' && (
               <div className="space-y-4 sm:space-y-6">
                 <div className="bg-white dark:bg-gray-700 rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-gray-600">
@@ -489,29 +666,29 @@ export default function Settings() {
                     Plano Atual
                   </h2>
                   <div className="plan-card border border-indigo-200 dark:border-gray-600 rounded-lg p-4 sm:p-6">
-  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-    <div>
-      <h3 className="text-base sm:text-lg font-semibold text-indigo-700 dark:text-indigo-200">
-        Plano Gratuito
-      </h3>
-      <p className="text-indigo-600 dark:text-gray-300 !important mt-1 text-sm sm:text-base">
-        Perfeito para começar
-      </p>
-      <ul className="mt-3 sm:mt-4 space-y-1 sm:space-y-2 text-xs sm:text-sm text-indigo-800 dark:text-gray-200">
-        <li>• Até 3 páginas de checkout</li>
-        <li>• Personalização básica</li>
-        <li>• Taxa de transação de 5%</li>
-        <li>• Suporte por email</li>
-      </ul>
-    </div>
-    <div className="text-right">
-      <span className="text-xl sm:text-2xl font-bold text-indigo-700 dark:text-indigo-200">
-        R$0
-      </span>
-      <p className="text-indigo-600 dark:text-gray-300 text-sm sm:text-base">/mês</p>
-    </div>
-  </div>
-</div>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                      <div>
+                        <h3 className="text-base sm:text-lg font-semibold text-indigo-700 dark:text-indigo-200">
+                          Plano Gratuito
+                        </h3>
+                        <p className="text-indigo-600 dark:text-gray-300 mt-1 text-sm sm:text-base">
+                          Perfeito para começar
+                        </p>
+                        <ul className="mt-3 sm:mt-4 space-y-1 sm:space-y-2 text-xs sm:text-sm text-indigo-800 dark:text-gray-200">
+                          <li>• Até 3 páginas de checkout</li>
+                          <li>• Personalização básica</li>
+                          <li>• Taxa de transação de 5%</li>
+                          <li>• Suporte por email</li>
+                        </ul>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-xl sm:text-2xl font-bold text-indigo-700 dark:text-indigo-200">
+                          R$0
+                        </span>
+                        <p className="text-indigo-600 dark:text-gray-300 text-sm sm:text-base">/mês</p>
+                      </div>
+                    </div>
+                  </div>
 
                   <div className="mt-4 sm:mt-6">
                     <h3 className="text-sm sm:text-md font-semibold text-gray-900 dark:!text-white mb-3 sm:mb-4">
@@ -570,7 +747,6 @@ export default function Settings() {
               </div>
             )}
 
-            {/* Notifications Tab */}
             {activeTab === 'notifications' && (
               <div className="bg-white dark:bg-gray-700 rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-gray-600">
                 <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:!text-white mb-4 sm:mb-6">
@@ -683,7 +859,6 @@ export default function Settings() {
               </div>
             )}
 
-            {/* Security Tab */}
             {activeTab === 'security' && (
               <div className="space-y-4 sm:space-y-6">
                 <div className="bg-white dark:bg-gray-700 rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-gray-600">
@@ -762,19 +937,110 @@ export default function Settings() {
                     <div className="flex items-center space-x-3">
                       <ShieldCheckIcon className="h-6 w-6 sm:h-8 sm:w-8 text-gray-400 dark:!text-gray-500" />
                       <div>
-                        <h3 className="font-medium text-gray-900 dark:text-gray-200 text-sm sm:text-base">
-  Autenticação de Dois Fatores
-</h3>
-<p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300">
-  Adicione uma camada extra de segurança à sua conta
-</p>
+                        <h3 className="font-medium text-gray-900 dark:!text-white text-sm sm:text-base">
+                          Autenticação de Dois Fatores
+                        </h3>
+                        <p className="text-xs sm:text-sm text-gray-600 dark:!text-gray-400">
+                          {is2FAEnabled
+                            ? '2FA está ativado para sua conta'
+                            : 'Adicione uma camada extra de segurança à sua conta'}
+                        </p>
                       </div>
                     </div>
-                    <button className="bg-indigo-600 dark:bg-indigo-500 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 transition-colors text-sm sm:text-base">
-                      Ativar 2FA
+                    <button
+                      onClick={is2FAEnabled ? disable2FA : enable2FA}
+                      className={`bg-${
+                        is2FAEnabled ? 'red' : 'indigo'
+                      }-600 dark:bg-${
+                        is2FAEnabled ? 'red' : 'indigo'
+                      }-500 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-${
+                        is2FAEnabled ? 'red' : 'indigo'
+                      }-700 dark:hover:bg-${
+                        is2FAEnabled ? 'red' : 'indigo'
+                      }-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-${
+                        is2FAEnabled ? 'red' : 'indigo'
+                      }-600 dark:focus:ring-${
+                        is2FAEnabled ? 'red' : 'indigo'
+                      }-500 transition-colors text-sm sm:text-base`}
+                    >
+                      {is2FAEnabled ? 'Desativar 2FA' : 'Ativar 2FA'}
                     </button>
                   </div>
                 </div>
+
+                {show2FAModal && (
+                  <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white dark:bg-gray-700 rounded-xl p-6 w-full max-w-md">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:!text-white mb-4">
+                        Configurar Autenticação de Dois Fatores
+                      </h3>
+                      <p className="text-sm text-gray-600 dark:!text-gray-400 mb-4">
+                        Escaneie o QR code com seu aplicativo autenticador ou insira o código manualmente.
+                      </p>
+                      {qrCodeUri && (
+                        <div className="flex justify-center mb-4">
+                          <QRCodeCanvas value={qrCodeUri} size={200} />
+                        </div>
+                      )}
+                      {totpSecret && (
+                        <div className="mb-4">
+                          <p className="text-sm text-gray-600 dark:!text-gray-400">
+                            Código manual: <code className="break-all">{totpSecret}</code>
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => navigator.clipboard.writeText(totpSecret)}
+                            className="mt-2 text-indigo-600 dark:!text-indigo-400 hover:text-indigo-700 dark:hover:!text-indigo-300 text-sm"
+                          >
+                            Copiar código
+                          </button>
+                        </div>
+                      )}
+                      <form
+                        onSubmit={totpForm.handleSubmit(verifyTotpCode)}
+                        className="space-y-4"
+                      >
+                        <div>
+                          <label className="block text-sm font-medium text-gray-900 dark:!text-white mb-2">
+                            Código TOTP
+                          </label>
+                          <input
+                            {...totpForm.register('totpCode')}
+                            type="text"
+                            className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:!text-gray-100"
+                            placeholder="Digite o código de 6 dígitos"
+                          />
+                          {totpForm.formState.errors.totpCode && (
+                            <p className="mt-1 text-sm text-red-600 dark:!text-red-400">
+                              {totpForm.formState.errors.totpCode.message}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex justify-end space-x-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShow2FAModal(false);
+                              setTotpSecret(null);
+                              setQrCodeUri(null);
+                              totpForm.reset();
+                            }}
+                            className="bg-gray-300 dark:bg-gray-600 text-gray-900 dark:!text-white px-4 py-2 rounded-lg hover:bg-gray-400 dark:hover:bg-gray-500 transition-colors text-sm"
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            type="submit"
+                            disabled={totpForm.formState.isSubmitting}
+                            className="bg-indigo-600 dark:bg-indigo-500 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+                          >
+                            {totpForm.formState.isSubmitting ? 'Aguarde...' : 'Verificar Código'}
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                )}
 
                 <div className="bg-white dark:bg-gray-700 rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-gray-600">
                   <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:!text-white mb-4 sm:mb-6">
