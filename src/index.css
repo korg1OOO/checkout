@@ -1,4 +1,3 @@
-/* Existing CSS (partial) */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -19,16 +18,16 @@
 
 /* Dark theme */
 [data-theme="dark"] {
-  --background-color: #08080a; /* Updated background color */
-  --sidebar-bg: #141418; /* bg-gray-700 */
-  --text-color: #f3f4f6; /* text-gray-100 */
-  --text-secondary: #d1d5db; /* text-gray-300 */
-  --border-color: #4b5563; /* border-gray-600 */
-  --header-bg: #374151; /* bg-gray-700 */
+  --background-color: #0a0a0a; /* Deep black background */
+  --sidebar-bg: #0a0a0a; /* Deep black for sidebar */
+  --text-color: #f0f0f0; /* Soft white text */
+  --text-secondary: #b0b0b0; /* Light gray secondary text */
+  --border-color: #303030; /* Dark gray border for contrast */
+  --header-bg: #0a0a0a; /* Deep black for header */
   --primary-bg: #6366f1; /* bg-indigo-500 */
   --primary-hover: #4f46e5; /* bg-indigo-600 */
-  --active-bg: #4b5563; /* bg-gray-600 */
-  --active-text: #e0e7ff; /* text-indigo-200 */
+  --active-bg: #1a1a1a; /* Slightly lighter black for active elements */
+  --active-text: #d4d4d4; /* Light gray for active text */
 }
 
 .min-h-screen {
@@ -113,7 +112,7 @@ a.text-gray-700:hover {
   background-color: var(--active-bg);
 }
 
-/* Specific fix for the purple issue (from previous) */
+/* Specific fix for the purple issue like in previous */
 [data-theme="dark"] .text-indigo-600 {
   color: var(--text-secondary) !important;
 }
@@ -149,78 +148,6 @@ a.text-gray-700:hover {
 /* Ensure list item text is visible in dark mode */
 [data-theme="dark"] .text-gray-600 {
   color: var(--text-secondary) !important; /* #d1d5db (text-gray-300) in dark mode */
-}
-
-/* Ensure the preview area retains light mode styles, even in dark mode */
-.preview-area {
-  background-color: #ffffff !important; /* Force white background (bg-white) */
-  color: #1f2937 !important; /* Force text-gray-900 for text */
-}
-
-/* Override specific child elements in the preview area */
-.preview-area .bg-gray-100 {
-  background-color: #f3f4f6 !important; /* Force bg-gray-100 for the header */
-}
-
-.preview-area .text-gray-600 {
-  color: #4b5563 !important; /* Force text-gray-600 for the header text */
-}
-
-.preview-area .bg-white {
-  background-color: #ffffff !important; /* Force bg-white for draggable elements */
-}
-
-.preview-area .border-gray-300 {
-  border-color: #d1d5db !important; /* Force border-gray-300 for borders */
-}
-
-.preview-area .text-gray-500 {
-  color: #6b7280 !important; /* Force text-gray-500 for placeholder text */
-}
-
-.preview-area .text-gray-700 {
-  color: #374151 !important; /* Force text-gray-700 for labels */
-}
-
-.preview-area .bg-indigo-100 {
-  background-color: #e0e7ff !important; /* Force bg-indigo-100 for dragging state */
-}
-
-.preview-area .border-indigo-500 {
-  border-color: #6366f1 !important; /* Force border-indigo-500 for dragging state */
-}
-
-.preview-area .bg-indigo-50 {
-  background-color: #eef2ff !important; /* Force bg-indigo-50 for dragging state */
-}
-
-.preview-area .text-indigo-600 {
-  color: #4f46e5 !important; /* Force text-indigo-600 for checkboxes */
-}
-
-.preview-area .text-red-600 {
-  color: #dc2626 !important; /* Force text-red-600 for delete button */
-}
-
-.preview-area .text-red-700 {
-  color: #b91c1c !important; /* Force text-red-700 for delete button hover */
-}
-
-.preview-area .text-gray-400 {
-  color: #9ca3af !important; /* Force text-gray-400 for drag handle */
-}
-
-/* Ensure product list and customer info form text retain light mode colors */
-.preview-area .text-base.font-semibold {
-  color: #1f2937 !important; /* Force text-gray-900 for headings */
-}
-
-.preview-area .text-sm {
-  color: #4b5563 !important; /* Force text-gray-600 for smaller text */
-}
-
-.preview-area .font-bold.text-sm {
-  color: #1f2937 !important; /* Force text-gray-900 for product prices */
 }
 
 /* Add a class to style the specific div */
@@ -291,4 +218,129 @@ a.text-gray-700:hover {
 .checkout-page .font-bold.text-sm,
 .checkout-page .text-sm {
   color: inherit !important;
+}
+
+.checkout-page .error-text {
+  color: #DC2626 !important; /* Retain red for error messages */
+}
+
+.checkout-page .badge-digital {
+  background-color: #DBEAFE !important; /* bg-blue-100 */
+  color: #1E40AF !important; /* text-blue-800 */
+}
+
+.checkout-page .badge-physical {
+  background-color: #D1FAE5 !important; /* bg-green-100 */
+  color: #065F46 !important; /* text-green-800 */
+}
+
+.checkout-page .badge-shipping {
+  background-color: #FEF3C7 !important; /* bg-orange-100 */
+  color: #9A3412 !important; /* text-orange-800 */
+}
+
+.checkout-page .demo-message {
+  background-color: #EFF6FF !important; /* bg-blue-50 */
+  border-color: #BFDBFE !important; /* border-blue-200 */
+  color: #1E40AF !important; /* text-blue-800 */
+}
+
+/* Enhanced override for all text elements in dark mode to prevent invisibility */
+[data-theme="dark"] .text-gray-500,
+[data-theme="dark"] .text-gray-600,
+[data-theme="dark"] .text-gray-700,
+[data-theme="dark"] .text-gray-800,
+[data-theme="dark"] .text-gray-900 {
+  color: #f3f4f6 !important; /* Force light text */
+}
+
+[data-theme="dark"] .bg-white,
+[data-theme="dark"] .bg-gray-50,
+[data-theme="dark"] .bg-gray-100 {
+  background-color: #0a0a0a !important; /* Force dark background */
+}
+
+/* Ensure borders are visible in dark mode */
+[data-theme="dark"] .border-gray-200,
+[data-theme="dark"] .border-gray-300 {
+  border-color: #1f2937 !important; /* Darker border */
+}
+
+/* Builder-specific overrides to ensure visibility */
+[data-theme="dark"] .preview-area {
+  background-color: #ffffff !important;
+  color: #1f2937 !important;
+}
+
+[data-theme="dark"] .preview-area .bg-gray-100 {
+  background-color: #f3f4f6 !important;
+}
+
+[data-theme="dark"] .preview-area .text-gray-600 {
+  color: #4b5563 !important;
+}
+
+[data-theme="dark"] .preview-area .bg-white {
+  background-color: #ffffff !important;
+}
+
+[data-theme="dark"] .preview-area .border-gray-300 {
+  border-color: #d1d5db !important;
+}
+
+[data-theme="dark"] .preview-area .text-gray-500 {
+  color: #6b7280 !important;
+}
+
+[data-theme="dark"] .preview-area .text-gray-700 {
+  color: #374151 !important;
+}
+
+[data-theme="dark"] .preview-area .bg-indigo-100 {
+  background-color: #e0e7ff !important;
+}
+
+[data-theme="dark"] .preview-area .border-indigo-500 {
+  border-color: #6366f1 !important;
+}
+
+[data-theme="dark"] .preview-area .bg-indigo-50 {
+  background-color: #eef2ff !important;
+}
+
+[data-theme="dark"] .preview-area .text-indigo-600 {
+  color: #4f46e5 !important;
+}
+
+[data-theme="dark"] .preview-area .text-red-600 {
+  color: #dc2626 !important;
+}
+
+[data-theme="dark"] .preview-area .text-red-700 {
+  color: #b91c1c !important;
+}
+
+[data-theme="dark"] .preview-area .text-gray-400 {
+  color: #9ca3af !important;
+}
+
+/* Ensure product list and customer info form text retain light mode colors */
+[data-theme="dark"] .preview-area .text-base.font-semibold {
+  color: #1f2937 !important; /* Force text-gray-900 for headings */
+}
+
+[data-theme="dark"] .preview-area .text-sm {
+  color: #4b5563 !important; /* Force text-gray-600 for smaller text */
+}
+
+[data-theme="dark"] .preview-area .font-bold.text-sm {
+  color: #1f2937 !important; /* Force text-gray-900 for product prices */
+}
+
+[data-theme="dark"] .bg-gray-50 {
+  background-color: #0a0a0a !important;
+}
+
+[data-theme="dark"] .dark\:bg-gray-800 {
+  background-color: #0a0a0a !important;
 }

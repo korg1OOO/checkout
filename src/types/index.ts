@@ -1,4 +1,3 @@
-// types.ts
 export interface User {
   id: string;
   email: string;
@@ -21,6 +20,9 @@ export interface CheckoutPage {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  pixels?: string[]; // Added for Facebook pixels integration
+  utmify_key?: string; // Added for Utmify integration
+  delivery_email?: string; // Added for personalized delivery email
 }
 
 export interface CheckoutTheme {
@@ -52,7 +54,6 @@ export interface Product {
   type: 'digital' | 'physical';
   image_url?: string;
   is_active: boolean;
-  digital_file_url?: string;
   requires_shipping: boolean;
   order: number;
 }

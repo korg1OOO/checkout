@@ -1,4 +1,3 @@
-// src/pages/CheckoutPage.tsx
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -109,6 +108,24 @@ export default function CheckoutPage() {
             return acc;
           }, {})
         );
+
+        // Load Facebook Pixels if available
+        if (data.pixels && data.pixels.length > 0) {
+          const script = document.createElement('script');
+          script.innerHTML = `
+            !function(f,b,e,v,n,t,s)
+            {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+            n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+            if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+            n.queue=[];t=b.createElement(e);t.async=!0;
+            t.src=v;s=b.getElementsByTagName(e)[0];
+            s.parentNode.insertBefore(t,s)}(window, document,'script',
+            'https://connect.facebook.net/en_US/fbevents.js');
+            ${data.pixels.map(pixel => `fbq('init', '${pixel}');`).join('\n')}
+            fbq('track', 'PageView');
+          `;
+          document.head.appendChild(script);
+        }
       } catch (error: any) {
         console.error('Error fetching checkout page:', error);
         toast.error(error.message || 'Falha ao carregar página de checkout');
@@ -167,6 +184,34 @@ export default function CheckoutPage() {
 
       console.log('Order data:', orderData);
       toast.success('Pedido realizado com sucesso! Você receberá um email de confirmação em breve.');
+
+      // Simulate Utmify integration if key exists
+      if (checkoutPage?.utmify_key) {
+        const urlParams = new URLSearchParams(window.location.search);
+        const utms = {
+          utm_source: urlParams.get('utm_source'),
+          utm_medium: urlParams.get('utm_medium'),
+          utm_campaign: urlParams.get('utm_campaign'),
+          utm_term: urlParams.get('utm_term'),
+          utm_content: urlParams.get('utm_content'),
+        };
+        console.log('Reporting to Utmify:', { key: checkoutPage.utmify_key, orderData, utms });
+        toast.success('Venda reportada para Utmify com sucesso!');
+      }
+
+      // Simulate delivery email sending
+      if (checkoutPage?.delivery_email) {
+        toast.success(`Email de entrega enviado de ${checkoutPage.delivery_email}!`);
+      }
+
+      // Track purchase with Facebook Pixel if pixels exist
+      if (checkoutPage?.pixels && checkoutPage.pixels.length > 0) {
+        if (window.fbq) {
+          window.fbq('track', 'Purchase', { value: orderData.total_amount, currency: 'BRL' });
+          toast.success('Evento de compra rastreado no Facebook Pixel!');
+        }
+      }
+
       setSelectedProducts([]);
       setQuantities({});
     } catch (error) {
@@ -299,7 +344,6 @@ export default function CheckoutPage() {
   return (
     <div
       className="checkout-page min-h-screen py-8 px-4 sm:px-6"
-      data-theme="light" // Force light theme to prevent dark mode interference
       style={{
         backgroundColor: checkoutPage.theme.background_color,
         fontFamily: checkoutPage.theme.font_family,

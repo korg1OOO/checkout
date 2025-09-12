@@ -66,6 +66,9 @@ export default function CheckoutPageBuilder() {
   const [activeTab, setActiveTab] = useState('basic');
   const [loading, setLoading] = useState(isEditing);
   const [checkingSlug, setCheckingSlug] = useState(false);
+  const [userPixels, setUserPixels] = useState<string[]>([]);
+  const [userUtmifyKey, setUserUtmifyKey] = useState<string>('');
+  const [userDeliveryEmail, setUserDeliveryEmail] = useState<string>('');
 
   const {
     register,
@@ -175,7 +178,7 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
     }
   }, [watchedSlug, checkSlugUniqueness, isEditing]);
 
-  // Fetch existing page data
+  // Fetch existing page data and user settings (pixels, utmify, delivery_email)
   useEffect(() => {
   if (!user?.id) {
     setLoading(false);
@@ -183,6 +186,33 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
     navigate('/auth');
     return;
   }
+
+  const fetchUserSettings = async () => {
+    try {
+      // Fetch pixels
+      const { data: pixelsData, error: pixelsError } = await supabase
+        .from('user_pixels')
+        .select('pixel_id')
+        .eq('user_id', user.id);
+      if (pixelsError) throw pixelsError;
+      setUserPixels(pixelsData?.map(p => p.pixel_id) || []);
+
+      // Fetch user_profiles for utmify and delivery_email
+      const { data: profileData, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('utmify_key, delivery_email')
+        .eq('user_id', user.id)
+        .single();
+      if (profileError) throw profileError;
+      setUserUtmifyKey(profileData?.utmify_key || '');
+      setUserDeliveryEmail(profileData?.delivery_email || '');
+    } catch (error) {
+      console.error('Error fetching user settings:', error);
+      toast.error('Falha ao carregar configurações do usuário (pixels, Utmify, email)');
+    }
+  };
+
+  fetchUserSettings();
 
   if (!isEditing) {
     // Initialize default layout for new pages
@@ -214,7 +244,7 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
         if (error.code === 'PGRST116') {
           throw new Error('Página não encontrada ou você não tem permissão');
         } else if (error.code === '42501') {
-          throw new Error('Permissão negada. Verifique as políticas de acesso do banco de dados');
+          throw new Error('Permissão negada. Verifique sua política de acesso do banco de dados');
         }
         throw new Error(`Error fetching checkout page: ${error.message} (Code: ${error.code})`);
       }
@@ -339,9 +369,9 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
         ...draggedItem.content,
         text: draggedItem.type === 'title' ? watchedTitle || draggedItem.content.text
           : draggedItem.type === 'description' ? watchedDescription || draggedItem.content.text
-          : draggedItem.type === 'logo' ? { url: watchedLogoUrl || draggedItem.content.url }
-          : draggedItem.type === 'text_field' ? { ...draggedItem.content, fieldId: `field_${customFields.length + 1}` }
-          : draggedItem.content,
+          : draggedItem.content.text,
+        url: draggedItem.type === 'logo' ? watchedLogoUrl || draggedItem.content.url : draggedItem.content.url,
+        fieldId: draggedItem.type === 'text_field' ? `field_${customFields.length + 1}` : undefined,
       },
       order: destination.index,
     };
@@ -472,6 +502,9 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
         })),
         is_active: data.is_active,
         user_id: user.id,
+        pixels: userPixels, // Integrate pixels from user settings
+        utmify_key: userUtmifyKey || undefined, // Integrate Utmify key
+        delivery_email: userDeliveryEmail || undefined, // Integrate delivery email
       };
 
       console.log('Submitting pageData:', JSON.stringify(pageData, null, 2));
@@ -491,7 +524,7 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
             toast.error('Este slug já está em uso. Escolha outro.');
             setValue('slug', `${data.slug}-${Date.now()}`);
           } else if (error.code === '42501') {
-            toast.error('Permissão negada. Verifique as políticas de acesso do banco de dados.');
+            toast.error('Permissão negada. Verifique sua política de acesso do banco de dados.');
           } else if (error.code === 'PGRST116') {
             toast.error('Página não encontrada ou você não tem permissão para editá-la.');
           } else {
@@ -513,7 +546,7 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
             toast.error('Este slug já está em uso. Escolha outro.');
             setValue('slug', `${data.slug}-${Date.now()}`);
           } else if (error.code === '42501') {
-            toast.error('Permissão negada. Verifique as políticas de acesso do banco de dados.');
+            toast.error('Permissão negada. Verifique sua política de acesso do banco de dados.');
           } else {
             throw new Error(`Error creating page: ${error.message} (Code: ${error.code})`);
           }
@@ -646,21 +679,21 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
     <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
       {/* Mobile Menu Button */}
       <button
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white rounded-md shadow-md"
+        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-[var(--sidebar-bg)] rounded-md shadow-md"
         onClick={() => setIsNavOpen(!isNavOpen)}
       >
         {isNavOpen ? (
-          <XMarkIcon className="h-6 w-6 text-gray-900" />
+          <XMarkIcon className="h-6 w-6 text-[var(--text-color)]" />
         ) : (
-          <Bars3Icon className="h-6 w-6 text-gray-900" />
+          <Bars3Icon className="h-6 w-6 text-[var(--text-color)]" />
         )}
       </button>
 
       <div className="mb-6 sm:mb-8">
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
+        <h1 className="text-xl sm:text-2xl font-bold text-[var(--text-color)]">
           {isEditing ? 'Editar Página de Checkout' : 'Criar Nova Página de Checkout'}
         </h1>
-        <p className="text-sm sm:text-base text-gray-600 mt-1">
+        <p className="text-sm sm:text-base text-[var(--text-secondary)] mt-1">
           {isEditing ? 'Atualize as configurações da sua página de checkout' : 'Configure sua página de checkout personalizada'}
         </p>
       </div>
@@ -668,7 +701,7 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
       <div className="flex flex-col lg:flex-row lg:gap-8">
         {/* Sidebar Navigation */}
         <div
-          className={`lg:w-64 bg-white lg:bg-transparent rounded-xl lg:rounded-none shadow-sm lg:shadow-none border lg:border-none border-gray-200 lg:sticky lg:top-4 transform transition-transform duration-300 ease-in-out ${
+          className={`lg:w-64 bg-[var(--sidebar-bg)] lg:bg-transparent rounded-xl lg:rounded-none shadow-sm lg:shadow-none border lg:border-none border-[var(--border-color)] lg:sticky lg:top-4 transform transition-transform duration-300 ease-in-out ${
             isNavOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
           } fixed inset-y-0 left-0 z-40 lg:static w-64 p-4 lg:p-0`}
         >
@@ -680,10 +713,10 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                   setActiveTab(tab.id);
                   setIsNavOpen(false);
                 }}
-                className={`w-full flex items-center space-x-3 px-3 py-2 text-sm sm:text-base font-medium rounded-lg transition-colors ${
+                className={`w-full flex flex items-center space-x-3 px-3 py-2 text-sm sm:text-base font-medium rounded-lg transition-colors ${
                   activeTab === tab.id
-                    ? 'bg-indigo-100 text-indigo-700 border border-indigo-200'
-                    : 'text-gray-700 hover:bg-gray-100'
+                    ? 'bg-[var(--active-bg)] text-[var(--active-text)] border border-[var(--border-color)]'
+                    : 'text-[var(--text-color)] hover:bg-[var(--border-color)]'
                 }`}
               >
                 <span className="text-base sm:text-lg">{tab.icon}</span>
@@ -698,17 +731,17 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 sm:space-y-8">
             {/* Basic Info Tab */}
             {activeTab === 'basic' && (
-              <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200">
-                <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-4 sm:mb-6">Informações Básicas</h2>
+              <div className="bg-[var(--sidebar-bg)] rounded-xl p-4 sm:p-6 shadow-sm border border-[var(--border-color)]">
+                <h2 className="text-base sm:text-lg font-semibold text-[var(--text-color)] mb-4 sm:mb-6">Informações Básicas</h2>
                 <div className="space-y-4 sm:space-y-6">
                   <div>
-                    <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-xs sm:text-sm font-medium text-[var(--text-color)] mb-2">
                       Título da Página
                     </label>
                     <input
                       {...register('title')}
                       type="text"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-full px-3 py-2 border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-bg)]"
                       placeholder="ex: Checkout do Curso Premium"
                     />
                     {errors.title && (
@@ -717,36 +750,36 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                   </div>
 
                   <div>
-                    <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-xs sm:text-sm font-medium text-[var(--text-color)] mb-2">
                       URL da Página
                     </label>
                     <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-2">
-                      <span className="text-gray-500 text-xs sm:text-sm mb-2 sm:mb-0">
+                      <span className="text-[var(--text-secondary)] text-xs sm:text-sm mb-2 sm:mb-0">
                         {window.location.origin}/checkout/
                       </span>
                       <input
                         {...register('slug')}
                         type="text"
                         disabled={checkingSlug}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+                        className="flex-1 px-3 py-2 border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-bg)] disabled:opacity-50"
                       />
                     </div>
                     {errors.slug && (
                       <p className="mt-1 text-xs sm:text-sm text-red-600">{errors.slug.message}</p>
                     )}
                     {checkingSlug && (
-                      <p className="mt-1 text-xs sm:text-sm text-gray-500">Verificando disponibilidade do slug...</p>
+                      <p className="mt-1 text-xs sm:text-sm text-[var(--text-secondary)]">Verificando disponibilidade do slug...</p>
                     )}
                   </div>
 
                   <div>
-                    <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-xs sm:text-sm font-medium text-[var(--text-color)] mb-2">
                       Descrição
                     </label>
                     <textarea
                       {...register('description')}
                       rows={3}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-full px-3 py-2 border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-bg)]"
                       placeholder="Breve descrição da sua página de checkout"
                     />
                     {errors.description && (
@@ -755,13 +788,13 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                   </div>
 
                   <div>
-                    <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-xs sm:text-sm font-medium text-[var(--text-color)] mb-2">
                       URL do Logo (opcional)
                     </label>
                     <input
                       {...register('logo_url')}
                       type="url"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-full px-3 py-2 border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-bg)]"
                       placeholder="https://example.com/logo.png"
                     />
                     {errors.logo_url && (
@@ -784,9 +817,9 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                       <input
                         {...register('is_active')}
                         type="checkbox"
-                        className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                        className="rounded border-[var(--border-color)] text-[var(--primary-bg)] focus:ring-[var(--primary-bg)]"
                       />
-                      <span className="ml-2 text-xs sm:text-sm font-medium text-gray-700">Página Ativa</span>
+                      <span className="ml-2 text-xs sm:text-sm font-medium text-[var(--text-color)]">Página Ativa</span>
                     </label>
                   </div>
                 </div>
@@ -795,11 +828,11 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
 
             {/* Theme Tab */}
             {activeTab === 'theme' && (
-              <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200">
-                <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-4 sm:mb-6">Personalização do Tema</h2>
+              <div className="bg-[var(--sidebar-bg)] rounded-xl p-4 sm:p-6 shadow-sm border border-[var(--border-color)]">
+                <h2 className="text-base sm:text-lg font-semibold text-[var(--text-color)] mb-4 sm:mb-6">Personalização do Tema</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                   <div>
-                    <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-xs sm:text-sm font-medium text-[var(--text-color)] mb-2">
                       Cor Primária
                     </label>
                     <div className="flex items-center space-x-3">
@@ -807,19 +840,19 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                         type="color"
                         value={theme.primary_color}
                         onChange={(e) => setTheme({ ...theme, primary_color: e.target.value })}
-                        className="w-10 h-8 sm:w-12 sm:h-10 border border-gray-300 rounded-lg cursor-pointer"
+                        className="w-10 h-8 sm:w-12 sm:h-10 border border-[var(--border-color)] rounded-lg cursor-pointer"
                       />
                       <input
                         type="text"
                         value={theme.primary_color}
                         onChange={(e) => setTheme({ ...theme, primary_color: e.target.value })}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        className="flex-1 px-3 py-2 border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-bg)]"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-xs sm:text-sm font-medium text-[var(--text-color)] mb-2">
                       Cor Secundária
                     </label>
                     <div className="flex items-center space-x-3">
@@ -827,19 +860,19 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                         type="color"
                         value={theme.secondary_color}
                         onChange={(e) => setTheme({ ...theme, secondary_color: e.target.value })}
-                        className="w-10 h-8 sm:w-12 sm:h-10 border border-gray-300 rounded-lg cursor-pointer"
+                        className="w-10 h-8 sm:w-12 sm:h-10 border border-[var(--border-color)] rounded-lg cursor-pointer"
                       />
                       <input
                         type="text"
                         value={theme.secondary_color}
                         onChange={(e) => setTheme({ ...theme, secondary_color: e.target.value })}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        className="flex-1 px-3 py-2 border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-bg)]"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-xs sm:text-sm font-medium text-[var(--text-color)] mb-2">
                       Cor de Fundo
                     </label>
                     <div className="flex items-center space-x-3">
@@ -847,19 +880,19 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                         type="color"
                         value={theme.background_color}
                         onChange={(e) => setTheme({ ...theme, background_color: e.target.value })}
-                        className="w-10 h-8 sm:w-12 sm:h-10 border border-gray-300 rounded-lg cursor-pointer"
+                        className="w-10 h-8 sm:w-12 sm:h-10 border border-[var(--border-color)] rounded-lg cursor-pointer"
                       />
                       <input
                         type="text"
                         value={theme.background_color}
                         onChange={(e) => setTheme({ ...theme, background_color: e.target.value })}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        className="flex-1 px-3 py-2 border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-bg)]"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-xs sm:text-sm font-medium text-[var(--text-color)] mb-2">
                       Cor do Texto
                     </label>
                     <div className="flex items-center space-x-3">
@@ -867,25 +900,25 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                         type="color"
                         value={theme.text_color}
                         onChange={(e) => setTheme({ ...theme, text_color: e.target.value })}
-                        className="w-10 h-8 sm:w-12 sm:h-10 border border-gray-300 rounded-lg cursor-pointer"
+                        className="w-10 h-8 sm:w-12 sm:h-10 border border-[var(--border-color)] rounded-lg cursor-pointer"
                       />
                       <input
                         type="text"
                         value={theme.text_color}
                         onChange={(e) => setTheme({ ...theme, text_color: e.target.value })}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        className="flex-1 px-3 py-2 border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-bg)]"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-xs sm:text-sm font-medium text-[var(--text-color)] mb-2">
                       Família da Fonte
                     </label>
                     <select
                       value={theme.font_family}
                       onChange={(e) => setTheme({ ...theme, font_family: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-full px-3 py-2 border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-bg)]"
                     >
                       <option value="Inter">Inter</option>
                       <option value="Poppins">Poppins</option>
@@ -896,13 +929,13 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                   </div>
 
                   <div>
-                    <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-xs sm:text-sm font-medium text-[var(--text-color)] mb-2">
                       Estilo do Botão
                     </label>
                     <select
                       value={theme.button_style}
                       onChange={(e) => setTheme({ ...theme, button_style: e.target.value as any })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-full px-3 py-2 border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-bg)]"
                     >
                       <option value="rounded">Arredondado</option>
                       <option value="square">Quadrado</option>
@@ -911,13 +944,13 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                   </div>
 
                   <div>
-                    <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-xs sm:text-sm font-medium text-[var(--text-color)] mb-2">
                       Raio da Borda
                     </label>
                     <select
                       value={theme.border_radius}
                       onChange={(e) => setTheme({ ...theme, border_radius: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-full px-3 py-2 border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-bg)]"
                     >
                       <option value="0px">Nenhum</option>
                       <option value="4px">Pequeno</option>
@@ -932,13 +965,13 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
 
             {/* Custom Fields Tab */}
             {activeTab === 'fields' && (
-              <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200">
+              <div className="bg-[var(--sidebar-bg)] rounded-xl p-4 sm:p-6 shadow-sm border border-[var(--border-color)]">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6 gap-4">
-                  <h2 className="text-base sm:text-lg font-semibold text-gray-900">Campos Personalizados</h2>
+                  <h2 className="text-base sm:text-lg font-semibold text-[var(--text-color)]">Campos Personalizados</h2>
                   <button
                     type="button"
                     onClick={addCustomField}
-                    className="inline-flex items-center space-x-2 bg-indigo-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors text-sm"
+                    className="inline-flex items-center space-x-2 bg-[var(--primary-bg)] text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-[var(--primary-hover)] transition-colors text-sm"
                   >
                     <PlusIcon className="h-4 w-4" />
                     <span>Adicionar Campo</span>
@@ -949,9 +982,9 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                   <Droppable droppableId="customFields">
                     {(provided) => (
                       <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-4 sm:space-y-6">
-                        <div className="bg-gray-50 p-3 sm:p-4 rounded-lg">
-                          <h3 className="font-medium text-gray-900 mb-2 text-sm sm:text-base">Campos Padrão (Sempre Incluídos)</h3>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 text-xs sm:text-sm text-gray-600">
+                        <div className="bg-[var(--active-bg)] p-3 sm:p-4 rounded-lg">
+                          <h3 className="font-medium text-[var(--text-color)] mb-2 text-sm sm:text-base">Campos Padrão (Sempre Incluídos)</h3>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 text-xs sm:text-sm text-[var(--text-secondary)]">
                             <div>• Nome Completo</div>
                             <div>• Endereço de Email</div>
                             <div>• Número de Telefone</div>
@@ -966,20 +999,20 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                                 ref={provided.innerRef}
                                 {...provided.draggableProps}
                                 {...provided.dragHandleProps}
-                                className={`border border-gray-200 rounded-lg p-3 sm:p-4 ${
-                                  snapshot.isDragging ? 'bg-indigo-50' : ''
+                                className={`border border-[var(--border-color)] rounded-lg p-3 sm:p-4 ${
+                                  snapshot.isDragging ? 'bg-[var(--active-bg)]' : ''
                                 }`}
                               >
                                 <div className="flex items-center justify-between mb-2">
                                   <div className="flex items-center space-x-2">
-                                    <Bars3Icon className="h-5 w-5 text-gray-400 cursor-move" />
+                                    <Bars3Icon className="h-5 w-5 text-[var(--text-secondary)] cursor-move" />
                                     <span className="text-sm font-medium">Campo {index + 1}</span>
                                   </div>
                                 </div>
 
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                                   <div>
-                                    <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+                                    <label className="block text-xs sm:text-sm font-medium text-[var(--text-color)] mb-1">
                                       Nome do Campo
                                     </label>
                                     <input
@@ -991,30 +1024,30 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                                           label: field.label || e.target.value,
                                         })
                                       }
-                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                      className="w-full px-3 py-2 border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-bg)]"
                                     />
                                   </div>
 
                                   <div>
-                                    <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+                                    <label className="block text-xs sm:text-sm font-medium text-[var(--text-color)] mb-1">
                                       Rótulo do Campo
                                     </label>
                                     <input
                                       type="text"
                                       value={field.label}
                                       onChange={(e) => updateCustomField(index, { label: e.target.value })}
-                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                      className="w-full px-3 py-2 border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-bg)]"
                                     />
                                   </div>
 
                                   <div>
-                                    <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+                                    <label className="block text-xs sm:text-sm font-medium text-[var(--text-color)] mb-1">
                                       Tipo do Campo
                                     </label>
                                     <select
                                       value={field.type}
                                       onChange={(e) => updateCustomField(index, { type: e.target.value as any })}
-                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                      className="w-full px-3 py-2 border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-bg)]"
                                     >
                                       <option value="text">Texto</option>
                                       <option value="email">Email</option>
@@ -1028,14 +1061,14 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
 
                                 <div className="mt-3 sm:mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                                   <div>
-                                    <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+                                    <label className="block text-xs sm:text-sm font-medium text-[var(--text-color)] mb-1">
                                       Texto de Exemplo
                                     </label>
                                     <input
                                       type="text"
                                       value={field.placeholder || ''}
                                       onChange={(e) => updateCustomField(index, { placeholder: e.target.value })}
-                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                      className="w-full px-3 py-2 border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-bg)]"
                                       placeholder="Digite o texto de exemplo..."
                                     />
                                   </div>
@@ -1046,9 +1079,9 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                                         type="checkbox"
                                         checked={field.required}
                                         onChange={(e) => updateCustomField(index, { required: e.target.checked })}
-                                        className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                        className="rounded border-[var(--border-color)] text-[var(--primary-bg)] focus:ring-[var(--primary-bg)]"
                                       />
-                                      <span className="ml-2 text-xs sm:text-sm text-gray-700">Obrigatório</span>
+                                      <span className="ml-2 text-xs sm:text-sm text-[var(--text-color)]">Obrigatório</span>
                                     </label>
                                     <button
                                       type="button"
@@ -1062,7 +1095,7 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
 
                                 {field.type === 'select' && (
                                   <div className="mt-3 sm:mt-4">
-                                    <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+                                    <label className="block text-xs sm:text-sm font-medium text-[var(--text-color)] mb-1">
                                       Opções (separadas por vírgula)
                                     </label>
                                     <input
@@ -1076,7 +1109,7 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                                             .filter((opt) => opt),
                                         })
                                       }
-                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                      className="w-full px-3 py-2 border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-bg)]"
                                       placeholder="Opção 1, Opção 2, Opção 3"
                                     />
                                   </div>
@@ -1092,7 +1125,7 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                 </DragDropContext>
 
                 {customFields.length === 0 && (
-                  <div className="text-center py-6 sm:py-8 text-gray-500">
+                  <div className="text-center py-6 sm:py-8 text-[var(--text-secondary)]">
                     <p className="text-sm sm:text-base">Nenhum campo personalizado adicionado ainda.</p>
                     <p className="text-xs sm:text-sm">Clique em "Adicionar Campo" para criar campos de formulário adicionais.</p>
                   </div>
@@ -1102,13 +1135,13 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
 
             {/* Products Tab */}
             {activeTab === 'products' && (
-              <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200">
+              <div className="bg-[var(--sidebar-bg)] rounded-xl p-4 sm:p-6 shadow-sm border border-[var(--border-color)]">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6 gap-4">
-                  <h2 className="text-base sm:text-lg font-semibold text-gray-900">Produtos</h2>
+                  <h2 className="text-base sm:text-lg font-semibold text-[var(--text-color)]">Produtos</h2>
                   <button
                     type="button"
                     onClick={addProduct}
-                    className="inline-flex items-center space-x-2 bg-indigo-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors text-sm"
+                    className="inline-flex items-center space-x-2 bg-[var(--primary-bg)] text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-[var(--primary-hover)] transition-colors text-sm"
                   >
                     <PlusIcon className="h-4 w-4" />
                     <span>Adicionar Produto</span>
@@ -1126,14 +1159,14 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                                 ref={provided.innerRef}
                                 {...provided.draggableProps}
                                 {...provided.dragHandleProps}
-                                className={`border border-gray-200 rounded-lg p-3 sm:p-6 ${
-                                  snapshot.isDragging ? 'bg-indigo-50' : ''
+                                className={`border border-[var(--border-color)] rounded-lg p-3 sm:p-6 ${
+                                  snapshot.isDragging ? 'bg-[var(--active-bg)]' : ''
                                 }`}
                               >
                                 <div className="flex items-center justify-between mb-3 sm:mb-4">
                                   <div className="flex items-center space-x-2">
-                                    <Bars3Icon className="h-5 w-5 text-gray-400 cursor-move" />
-                                    <h3 className="font-medium text-sm sm:text-base text-gray-900">Produto {index + 1}</h3>
+                                    <Bars3Icon className="h-5 w-5 text-[var(--text-secondary)] cursor-move" />
+                                    <h3 className="font-medium text-sm sm:text-base text-[var(--text-color)]">Produto {index + 1}</h3>
                                   </div>
                                   <button
                                     type="button"
@@ -1146,20 +1179,20 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
 
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                                   <div>
-                                    <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+                                    <label className="block text-xs sm:text-sm font-medium text-[var(--text-color)] mb-1">
                                       Nome do Produto *
                                     </label>
                                     <input
                                       type="text"
                                       value={product.name}
                                       onChange={(e) => updateProduct(index, { name: e.target.value })}
-                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                      className="w-full px-3 py-2 border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-bg)]"
                                       placeholder="Nome do produto"
                                     />
                                   </div>
 
                                   <div>
-                                    <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+                                    <label className="block text-xs sm:text-sm font-medium text-[var(--text-color)] mb-1">
                                       Preço (R$) *
                                     </label>
                                     <input
@@ -1167,13 +1200,13 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                                       step="0.01"
                                       value={product.price}
                                       onChange={(e) => updateProduct(index, { price: parseFloat(e.target.value) || 0 })}
-                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                      className="w-full px-3 py-2 border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-bg)]"
                                       placeholder="0.00"
                                     />
                                   </div>
 
                                   <div>
-                                    <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+                                    <label className="block text-xs sm:text-sm font-medium text-[var(--text-color)] mb-1">
                                       Tipo do Produto
                                     </label>
                                     <select
@@ -1184,7 +1217,7 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                                           requires_shipping: e.target.value === 'physical',
                                         })
                                       }
-                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                      className="w-full px-3 py-2 border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-bg)]"
                                     >
                                       <option value="digital">Produto Digital</option>
                                       <option value="physical">Produto Físico</option>
@@ -1192,14 +1225,14 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                                   </div>
 
                                   <div>
-                                    <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+                                    <label className="block text-xs sm:text-sm font-medium text-[var(--text-color)] mb-1">
                                       URL da Imagem (opcional)
                                     </label>
                                     <input
                                       type="url"
                                       value={product.image_url || ''}
                                       onChange={(e) => updateProduct(index, { image_url: e.target.value })}
-                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                      className="w-full px-3 py-2 border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-bg)]"
                                       placeholder="https://example.com/image.jpg"
                                     />
                                     {product.image_url && isValidUrl(product.image_url) && (
@@ -1216,28 +1249,28 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                                 </div>
 
                                 <div className="mt-3 sm:mt-4">
-                                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+                                  <label className="block text-xs sm:text-sm font-medium text-[var(--text-color)] mb-1">
                                     Descrição
                                   </label>
                                   <textarea
                                     value={product.description}
                                     onChange={(e) => updateProduct(index, { description: e.target.value })}
                                     rows={3}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    className="w-full px-3 py-2 border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-bg)]"
                                     placeholder="Descrição do produto..."
                                   />
                                 </div>
 
                                 {product.type === 'digital' && (
                                   <div className="mt-3 sm:mt-4">
-                                    <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+                                    <label className="block text-xs sm:text-sm font-medium text-[var(--text-color)] mb-1">
                                       URL do Arquivo Digital (opcional)
                                     </label>
                                     <input
                                       type="url"
                                       value={product.digital_file_url || ''}
                                       onChange={(e) => updateProduct(index, { digital_file_url: e.target.value })}
-                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                      className="w-full px-3 py-2 border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-bg)]"
                                       placeholder="https://example.com/file.pdf"
                                     />
                                   </div>
@@ -1249,9 +1282,9 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                                       type="checkbox"
                                       checked={product.is_active}
                                       onChange={(e) => updateProduct(index, { is_active: e.target.checked })}
-                                      className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                      className="rounded border-[var(--border-color)] text-[var(--primary-bg)] focus:ring-[var(--primary-bg)]"
                                     />
-                                    <span className="ml-2 text-xs sm:text-sm text-gray-700">Produto Ativo</span>
+                                    <span className="ml-2 text-xs sm:text-sm text-[var(--text-color)]">Produto Ativo</span>
                                   </label>
                                 </div>
                               </div>
@@ -1265,7 +1298,7 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                 </DragDropContext>
 
                 {products.length === 0 && (
-                  <div className="text-center py-6 sm:py-8 text-gray-500">
+                  <div className="text-center py-6 sm:py-8 text-[var(--text-secondary)]">
                     <p className="text-sm sm:text-base">Nenhum produto adicionado ainda.</p>
                     <p className="text-xs sm:text-sm">Clique em "Adicionar Produto" para começar a vender.</p>
                   </div>
@@ -1275,13 +1308,13 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
 
             {/* Preview Tab */}
             {activeTab === 'preview' && (
-  <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200">
-    <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-4 sm:mb-6">Visualização</h2>
+  <div className="bg-[var(--sidebar-bg)] rounded-xl p-4 sm:p-6 shadow-sm border border-[var(--border-color)]">
+    <h2 className="text-base sm:text-lg font-semibold text-[var(--text-color)] mb-4 sm:mb-6">Visualização</h2>
     <DragDropContext onDragEnd={onDragEnd}>
       <div className="flex flex-col lg:flex-row gap-6">
         {/* Toolbox */}
-        <div className="w-full lg:w-1/4 bg-gray-50 p-4 rounded-lg">
-          <h3 className="text-sm font-medium text-gray-900 mb-4" style={{ display: 'block', color: '#1F2937' }}>
+        <div className="w-full lg:w-1/4 bg-[var(--active-bg)] p-4 rounded-lg">
+          <h3 className="text-sm font-medium text-[var(--text-color)] mb-4">
             Elementos
           </h3>
           <Droppable droppableId="toolbox" isDropDisabled={true}>
@@ -1289,10 +1322,10 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
               <div
                 {...provided.droppableProps}
                 ref={provided.innerRef}
-                className={`space-y-2 min-h-[200px] ${snapshot.isDraggingOver ? 'bg-gray-100' : ''}`}
+                className={`space-y-2 min-h-[200px] ${snapshot.isDraggingOver ? 'bg-[var(--border-color)]' : ''}`}
               >
                 {toolboxItems.length === 0 && (
-                  <p className="text-sm text-gray-500">Nenhum elemento disponível.</p>
+                  <p className="text-sm text-[var(--text-secondary)]">Nenhum elemento disponível.</p>
                 )}
                 {toolboxItems.map((item, index) => (
                   <Draggable key={item.id} draggableId={item.id} index={index}>
@@ -1301,12 +1334,12 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                         ref={provided.innerRef}
                         {...provided.draggableProps}
                         {...provided.dragHandleProps}
-                        className={`p-3 bg-white border border-gray-200 rounded-lg flex items-center space-x-2 cursor-move ${
-                          snapshot.isDragging ? 'bg-indigo-100 shadow-lg' : 'hover:bg-gray-100'
+                        className={`p-3 bg-[var(--sidebar-bg)] border border-[var(--border-color)] rounded-lg flex items-center space-x-2 cursor-move ${
+                          snapshot.isDragging ? 'bg-[var(--active-bg)] shadow-lg' : 'hover:bg-[var(--border-color)]'
                         }`}
                       >
-                        <Bars3Icon className="h-5 w-5 text-gray-400" />
-                        <span className="text-sm">
+                        <Bars3Icon className="h-5 w-5 text-[var(--text-secondary)]" />
+                        <span className="text-sm text-[var(--text-color)]">
                           {item.type === 'title' ? 'Título'
                             : item.type === 'description' ? 'Descrição'
                             : item.type === 'logo' ? 'Logo'
@@ -1329,8 +1362,8 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
         </div>
 
         {/* Preview Area */}
-        <div className="flex-1 border border-gray-300 rounded-lg overflow-hidden preview-area">
-  <div className="bg-gray-100 px-3 sm:px-4 py-2 text-xs sm:text-sm text-gray-600">
+        <div className="flex-1 border rounded-lg overflow-hidden preview-area" style={{ border: '1px solid #d1d5db' }}>
+  <div style={{ backgroundColor: '#f9fafb', padding: '0.5rem 1rem', fontSize: '0.875rem', color: '#6b7280' }}>
     Visualização: {window.location.origin}/checkout/{watch('slug') || 'sua-url'}
   </div>
   <Droppable droppableId="layout">
@@ -1338,19 +1371,19 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
       <div
         {...provided.droppableProps}
         ref={provided.innerRef}
-        className={`p-4 sm:p-8 min-h-[400px] border-2 ${
-          snapshot.isDraggingOver ? 'border-indigo-500 bg-indigo-50' : 'border-gray-300'
-        }`}
+        className="p-4 sm:p-8 min-h-[400px]"
         style={{
-          backgroundColor: '#ffffff', // Hardcode white instead of theme.background_color
+          borderWidth: '2px',
+          borderColor: snapshot.isDraggingOver ? '#3B82F6' : '#d1d5db',
+          backgroundColor: snapshot.isDraggingOver ? '#f9fafb' : theme.background_color,
           fontFamily: theme.font_family,
-          color: '#1f2937', // Hardcode text-gray-900 instead of theme.text_color
+          color: theme.text_color,
         }}
       >
                 <div className="max-w-md mx-auto space-y-4">
                   {layout.length === 0 && (
-                    <div className="text-center text-gray-500 py-8">
-                      <p className="text-sm">Arraste elementos da barra lateral para construir sua página.</p>
+                    <div style={{ textAlign: 'center', color: '#6b7280', paddingTop: '2rem', paddingBottom: '2rem' }}>
+                      <p style={{ fontSize: '0.875rem' }}>Arraste elementos da barra lateral para construir sua página.</p>
                     </div>
                   )}
                   {layout.map((element, index) => (
@@ -1359,15 +1392,20 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                         <div
                           ref={provided.innerRef}
                           {...provided.draggableProps}
-                          className={`p-4 border rounded-lg relative group ${
-                            snapshot.isDragging ? 'bg-indigo-100 shadow-lg' : 'bg-white'
-                          }`}
+                          className="relative group"
+                          style={{
+                            padding: '1rem',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '0.5rem',
+                            backgroundColor: snapshot.isDragging ? '#f9fafb' : '#ffffff',
+                            boxShadow: snapshot.isDragging ? '0 10px 15px -3px rgba(0, 0, 0, 0.1)' : 'none',
+                          }}
                         >
                           <div
                             {...provided.dragHandleProps}
                             className="absolute top-2 left-2 cursor-move"
                           >
-                            <Bars3Icon className="h-5 w-5 text-gray-400" />
+                            <Bars3Icon className="h-5 w-5" style={{ color: '#6b7280' }} />
                           </div>
                           <button
                             type="button"
@@ -1382,11 +1420,12 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                                 type="text"
                                 value={element.content.text || watchedTitle}
                                 onChange={(e) => updateLayoutElement(index, { ...element.content, text: e.target.value })}
-                                className="w-full text-center mb-2"
+                                className="w-full"
                                 style={{
                                   fontSize: element.content.style?.fontSize,
                                   fontWeight: element.content.style?.fontWeight,
                                   textAlign: element.content.style?.align,
+                                  marginBottom: '0.5rem',
                                 }}
                               />
                               <div className="flex space-x-2">
@@ -1398,7 +1437,7 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                                       style: { ...element.content.style, fontSize: e.target.value },
                                     })
                                   }
-                                  className="px-2 py-1 border rounded-lg"
+                                  style={{ padding: '0.25rem 0.5rem', border: '1px solid #d1d5db', borderRadius: '0.5rem' }}
                                 >
                                   <option value="16px">16px</option>
                                   <option value="20px">20px</option>
@@ -1413,7 +1452,7 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                                       style: { ...element.content.style, align: e.target.value as any },
                                     })
                                   }
-                                  className="px-2 py-1 border rounded-lg"
+                                  style={{ padding: '0.25rem 0.5rem', border: '1px solid #d1d5db', borderRadius: '0.5rem' }}
                                 >
                                   <option value="left">Esquerda</option>
                                   <option value="center">Centro</option>
@@ -1427,11 +1466,12 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                               <textarea
                                 value={element.content.text || watchedDescription}
                                 onChange={(e) => updateLayoutElement(index, { ...element.content, text: e.target.value })}
-                                className="w-full text-center resize-none mb-2"
+                                className="w-full resize-none"
                                 rows={3}
                                 style={{
                                   fontSize: element.content.style?.fontSize,
                                   textAlign: element.content.style?.align,
+                                  marginBottom: '0.5rem',
                                 }}
                               />
                               <div className="flex space-x-2">
@@ -1443,7 +1483,7 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                                       style: { ...element.content.style, fontSize: e.target.value },
                                     })
                                   }
-                                  className="px-2 py-1 border rounded-lg"
+                                  style={{ padding: '0.25rem 0.5rem', border: '1px solid #d1d5db', borderRadius: '0.5rem' }}
                                 >
                                   <option value="12px">12px</option>
                                   <option value="14px">14px</option>
@@ -1458,7 +1498,7 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                                       style: { ...element.content.style, align: e.target.value as any },
                                     })
                                   }
-                                  className="px-2 py-1 border rounded-lg"
+                                  style={{ padding: '0.25rem 0.5rem', border: '1px solid #d1d5db', borderRadius: '0.5rem' }}
                                 >
                                   <option value="left">Esquerda</option>
                                   <option value="center">Centro</option>
@@ -1468,20 +1508,19 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                             </div>
                           )}
                           {element.type === 'logo' && (
-                            <div className="text-center">
+                            <div style={{ textAlign: 'center' }}>
                               <input
                                 type="url"
                                 value={element.content.url || watchedLogoUrl}
                                 onChange={(e) => updateLayoutElement(index, { ...element.content, url: e.target.value })}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg mb-2"
+                                style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #d1d5db', borderRadius: '0.5rem', marginBottom: '0.5rem' }}
                                 placeholder="https://example.com/logo.png"
                               />
                               {element.content.url && isValidUrl(element.content.url) && (
                                 <img
                                   src={element.content.url}
                                   alt="Logo"
-                                  className="h-12 mx-auto"
-                                  style={{ textAlign: element.content.style?.align }}
+                                  style={{ height: '3rem', margin: '0 auto' }}
                                   onError={() => toast.error('URL do logo inválida')}
                                 />
                               )}
@@ -1492,8 +1531,7 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                               <input
                                 type="text"
                                 placeholder={element.content.placeholder}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg mb-2"
-                                style={{ borderRadius: theme.border_radius }}
+                                style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #d1d5db', borderRadius: theme.border_radius, marginBottom: '0.5rem' }}
                                 onChange={(e) => {
                                   updateLayoutElement(index, { ...element.content, placeholder: e.target.value });
                                   if (element.content.fieldId) {
@@ -1514,7 +1552,7 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                                     }
                                   }
                                 }}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg mb-2"
+                                style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #d1d5db', borderRadius: theme.border_radius, marginBottom: '0.5rem' }}
                               >
                                 <option value="text">Texto</option>
                                 <option value="email">Email</option>
@@ -1536,9 +1574,10 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                                       }
                                     }
                                   }}
-                                  className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                  className="rounded"
+                                  style={{ borderColor: '#d1d5db' }}
                                 />
-                                <span className="ml-2 text-xs sm:text-sm text-gray-700">Obrigatório</span>
+                                <span className="ml-2 text-xs sm:text-sm" style={{ color: '#374151' }}>Obrigatório</span>
                               </label>
                             </div>
                           )}
@@ -1546,12 +1585,11 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                             <div>
                               <button
                                 type="button"
-                                className={`w-full py-2 px-4 text-white font-medium ${
-                                  theme.button_style === 'pill' ? 'rounded-full'
-                                    : theme.button_style === 'square' ? 'rounded-none'
-                                    : 'rounded-lg'
-                                }`}
                                 style={{
+                                  width: '100%',
+                                  padding: '0.5rem 1rem',
+                                  color: 'white',
+                                  fontWeight: '500',
                                   backgroundColor: theme.primary_color,
                                   borderRadius:
                                     theme.button_style === 'pill' ? '9999px'
@@ -1564,26 +1602,25 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                                   type="text"
                                   value={element.content.text}
                                   onChange={(e) => updateLayoutElement(index, { ...element.content, text: e.target.value })}
-                                  className="w-full bg-transparent text-white text-center"
+                                  style={{ width: '100%', background: 'transparent', color: 'white', textAlign: 'center' }}
                                 />
                               </button>
                             </div>
                           )}
                           {element.type === 'image' && (
-                            <div className="text-center">
+                            <div style={{ textAlign: 'center' }}>
                               <input
                                 type="url"
                                 value={element.content.url}
                                 onChange={(e) => updateLayoutElement(index, { ...element.content, url: e.target.value })}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg mb-2"
+                                style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #d1d5db', borderRadius: '0.5rem', marginBottom: '0.5rem' }}
                                 placeholder="https://example.com/image.jpg"
                               />
                               {element.content.url && isValidUrl(element.content.url) && (
                                 <img
                                   src={element.content.url}
                                   alt="Custom Image"
-                                  className="h-24 mx-auto"
-                                  style={{ textAlign: element.content.style?.align }}
+                                  style={{ height: '6rem', margin: '0 auto' }}
                                   onError={() => toast.error('URL da imagem inválida')}
                                 />
                               )}
@@ -1605,7 +1642,7 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                                     style: { ...element.content.style, height: e.target.value },
                                   })
                                 }
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #d1d5db', borderRadius: '0.5rem' }}
                                 placeholder="Altura (ex: 20px)"
                               />
                             </div>
@@ -1622,19 +1659,19 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                                     style: { ...element.content.style, color: e.target.value },
                                   })
                                 }
-                                className="w-full h-8 border border-gray-300 rounded-lg mt-2"
+                                style={{ width: '100%', height: '2rem', border: '1px solid #d1d5db', borderRadius: '0.5rem', marginTop: '0.5rem' }}
                               />
                             </div>
                           )}
                           {element.type === 'product_list' && (
                             <div>
-                              <h2 className="text-base font-semibold mb-3">Produtos</h2>
-                              <div className="space-y-4">
+                              <h2 style={{ fontSize: '1rem', fontWeight: '600', marginBottom: '0.75rem' }}>Produtos</h2>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                 {products
                                   .filter((product) => product.is_active)
                                   .sort((a, b) => a.order - b.order)
                                   .map((product) => (
-                                    <div key={product.id} className="border rounded-lg p-3">
+                                    <div key={product.id} style={{ border: '1px solid #d1d5db', borderRadius: '0.5rem', padding: '0.75rem' }}>
                                       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between">
                                         <div className="flex items-start space-x-3">
                                           {product.image_url && isValidUrl(product.image_url) && (
@@ -1646,11 +1683,11 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                                             />
                                           )}
                                           <div>
-                                            <h3 className="font-medium text-sm">{product.name || 'Produto sem nome'}</h3>
-                                            <p className="text-xs text-gray-600">{product.description}</p>
+                                            <h3 style={{ fontWeight: '500', fontSize: '0.875rem' }}>{product.name || 'Produto sem nome'}</h3>
+                                            <p style={{ fontSize: '0.75rem', color: '#4b5563' }}>{product.description}</p>
                                           </div>
                                         </div>
-                                        <span className="font-bold text-sm mt-2 sm:mt-0">
+                                        <span className="mt-2 sm:mt-0" style={{ fontWeight: '700', fontSize: '0.875rem' }}>
                                           R${product.price.toFixed(2)}
                                         </span>
                                       </div>
@@ -1661,31 +1698,31 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                           )}
                           {element.type === 'customer_info_form' && (
                             <div className="space-y-4">
-                              <h2 className="text-base font-semibold">Informações do Cliente</h2>
+                              <h2 style={{ fontSize: '1rem', fontWeight: '600' }}>Informações do Cliente</h2>
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <input
                                   type="text"
                                   placeholder="Nome Completo"
-                                  className="px-3 py-2 border border-gray-300 rounded-lg"
-                                  style={{ borderRadius: theme.border_radius }}
+                                  className="px-3 py-2 rounded-lg"
+                                  style={{ border: '1px solid #d1d5db', borderRadius: theme.border_radius }}
                                 />
                                 <input
                                   type="email"
                                   placeholder="Endereço de Email"
-                                  className="px-3 py-2 border border-gray-300 rounded-lg"
-                                  style={{ borderRadius: theme.border_radius }}
+                                  className="px-3 py-2 rounded-lg"
+                                  style={{ border: '1px solid #d1d5db', borderRadius: theme.border_radius }}
                                 />
                                 <input
                                   type="tel"
                                   placeholder="Número de Telefone"
-                                  className="px-3 py-2 border border-gray-300 rounded-lg"
-                                  style={{ borderRadius: theme.border_radius }}
+                                  className="px-3 py-2 rounded-lg"
+                                  style={{ border: '1px solid #d1d5db', borderRadius: theme.border_radius }}
                                 />
                                 <input
                                   type="text"
                                   placeholder="CPF"
-                                  className="px-3 py-2 border border-gray-300 rounded-lg"
-                                  style={{ borderRadius: theme.border_radius }}
+                                  className="px-3 py-2 rounded-lg"
+                                  style={{ border: '1px solid #d1d5db', borderRadius: theme.border_radius }}
                                 />
                               </div>
                               {customFields
@@ -1695,14 +1732,14 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                                     {field.type === 'textarea' ? (
                                       <textarea
                                         placeholder={field.placeholder || field.label}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                        style={{ borderRadius: theme.border_radius }}
+                                        className="w-full px-3 py-2 rounded-lg"
+                                        style={{ border: '1px solid #d1d5db', borderRadius: theme.border_radius }}
                                         rows={3}
                                       />
                                     ) : field.type === 'select' ? (
                                       <select
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                        style={{ borderRadius: theme.border_radius }}
+                                        className="w-full px-3 py-2 rounded-lg"
+                                        style={{ border: '1px solid #d1d5db', borderRadius: theme.border_radius }}
                                       >
                                         <option value="">{field.placeholder || field.label}</option>
                                         {field.options?.map((option, idx) => (
@@ -1715,16 +1752,17 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                                       <label className="flex items-center">
                                         <input
                                           type="checkbox"
-                                          className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                          className="rounded"
+                                          style={{ borderColor: '#d1d5db' }}
                                         />
-                                        <span className="ml-2 text-xs sm:text-sm">{field.label}</span>
+                                        <span className="ml-2 text-xs sm:text-sm" style={{ color: '#374151' }}>{field.label}</span>
                                       </label>
                                     ) : (
                                       <input
                                         type={field.type}
                                         placeholder={field.placeholder || field.label}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                        style={{ borderRadius: theme.border_radius }}
+                                        className="w-full px-3 py-2 rounded-lg"
+                                        style={{ border: '1px solid #d1d5db', borderRadius: theme.border_radius }}
                                       />
                                     )}
                                   </div>
@@ -1751,7 +1789,7 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
   <button
     type="button"
     onClick={() => navigate(`/checkout/${watch('slug')}`)}
-    className="inline-flex items-center space-x-2 px-3 sm:px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm sm:text-base"
+    className="inline-flex items-center space-x-2 px-3 sm:px-4 py-2 border border-[var(--border-color)] text-[var(--text-color)] rounded-lg hover:bg-[var(--border-color)] transition-colors text-sm sm:text-base"
   >
     <EyeIcon className="h-4 w-4" />
     <span>Testar Link</span>
@@ -1759,7 +1797,7 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
   <button
     type="button"
     onClick={() => setActiveTab('preview')}
-    className="inline-flex items-center space-x-2 px-3 sm:px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm sm:text-base"
+    className="inline-flex items-center space-x-2 px-3 sm:px-4 py-2 border border-[var(--border-color)] text-[var(--text-color)] rounded-lg hover:bg-[var(--border-color)] transition-colors text-sm sm:text-base"
   >
     <EyeIcon className="h-4 w-4" />
     <span>Visualizar</span>
@@ -1767,7 +1805,7 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
   <button
     type="submit"
     disabled={checkingSlug}
-    className="inline-flex items-center space-x-2 bg-indigo-600 text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-indigo-700 transition-colors disabled:bg-gray-400 text-sm sm:text-base"
+    className="inline-flex items-center space-x-2 bg-[var(--primary-bg)] text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-[var(--primary-hover)] transition-colors disabled:bg-gray-400 text-sm sm:text-base"
   >
     <BookmarkIcon className="h-4 w-4" />
     <span>{isEditing ? 'Atualizar Página' : 'Criar Página'}</span>

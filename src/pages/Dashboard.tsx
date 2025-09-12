@@ -1,4 +1,3 @@
-// src/pages/Dashboard.tsx
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -190,7 +189,7 @@ export default function Dashboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--primary-bg)]"></div>
       </div>
     );
   }
@@ -198,8 +197,8 @@ export default function Dashboard() {
   if (!user) {
     return (
       <div className="text-center py-12">
-        <h3 className="text-lg font-medium text-gray-900 mb-2">Please log in</h3>
-        <p className="text-gray-600">You need to be logged in to view your dashboard.</p>
+        <h3 className="text-lg font-medium text-[var(--text-color)] mb-2">Please log in</h3>
+        <p className="text-[var(--text-secondary)]">You need to be logged in to view your dashboard.</p>
       </div>
     );
   }
@@ -237,14 +236,14 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8">
-      <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl p-8 text-white">
+      <div className="bg-gradient-to-r from-[var(--primary-bg)] to-purple-600 rounded-xl p-8 text-white">
         <h1 className="text-3xl font-bold mb-2">Bem-vindo de volta!</h1>
         <p className="text-indigo-100 mb-6">
           Gerencie suas páginas de checkout e acompanhe o desempenho das suas vendas.
         </p>
         <Link
           to="/checkout-pages/new"
-          className="inline-flex items-center space-x-2 bg-white text-indigo-600 px-6 py-3 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+          className="inline-flex items-center space-x-2 bg-white text-[var(--primary-bg)] px-6 py-3 rounded-lg font-medium hover:bg-[var(--border-color)] transition-colors"
         >
           <PlusIcon className="h-5 w-5" />
           <span>Criar Nova Página de Checkout</span>
@@ -253,11 +252,11 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat) => (
-          <div key={stat.name} className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+          <div key={stat.name} className="bg-[var(--sidebar-bg)] rounded-xl p-6 shadow-sm border border-[var(--border-color)]">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">{stat.name}</p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">{stat.value}</p>
+                <p className="text-sm font-medium text-[var(--text-secondary)]">{stat.name}</p>
+                <p className="text-2xl font-bold text-[var(--text-color)] mt-1">{stat.value}</p>
               </div>
               <div className={`p-3 rounded-lg ${stat.bgColor}`}>
                 <stat.icon className={`h-6 w-6 ${stat.color}`} />
@@ -267,13 +266,13 @@ export default function Dashboard() {
         ))}
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-        <div className="px-6 py-4 border-b border-gray-200">
+      <div className="bg-[var(--sidebar-bg)] rounded-xl shadow-sm border border-[var(--border-color)]">
+        <div className="px-6 py-4 border-b border-[var(--border-color)]">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">Suas Páginas de Checkout</h2>
+            <h2 className="text-lg font-semibold text-[var(--text-color)]">Suas Páginas de Checkout</h2>
             <Link
               to="/checkout-pages"
-              className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
+              className="text-sm text-[var(--primary-bg)] hover:text-[var(--primary-hover)] font-medium"
             >
               Ver todas
             </Link>
@@ -282,14 +281,14 @@ export default function Dashboard() {
         <div className="p-6">
           {checkoutPages.length === 0 ? (
             <div className="text-center py-12">
-              <CreditCardIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhuma página de checkout ainda</h3>
-              <p className="text-gray-600 mb-6">
+              <CreditCardIcon className="h-12 w-12 text-[var(--text-secondary)] mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-[var(--text-color)] mb-2">Nenhuma página de checkout ainda</h3>
+              <p className="text-[var(--text-secondary)] mb-6">
                 Crie sua primeira página de checkout para começar a vender seus produtos.
               </p>
               <Link
                 to="/checkout-pages/new"
-                className="inline-flex items-center space-x-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
+                className="inline-flex items-center space-x-2 bg-[var(--primary-bg)] text-white px-4 py-2 rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
               >
                 <PlusIcon className="h-4 w-4" />
                 <span>Criar Página de Checkout</span>
@@ -298,15 +297,15 @@ export default function Dashboard() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {checkoutPages.map((page) => (
-                <div key={page.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                <div key={page.id} className="border border-[var(--border-color)] rounded-lg p-4 hover:shadow-md transition-shadow">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
-                      <h3 className="font-medium text-gray-900 truncate">{page.title}</h3>
-                      <p className="text-sm text-gray-600 mt-1 line-clamp-2">{page.description}</p>
+                      <h3 className="font-medium text-[var(--text-color)] truncate">{page.title}</h3>
+                      <p className="text-sm text-[var(--text-secondary)] mt-1 line-clamp-2">{page.description}</p>
                     </div>
                     <span
                       className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                        page.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                        page.is_active ? 'bg-green-100 text-green-800' : 'bg-[var(--active-bg)] text-[var(--active-text)]'
                       }`}
                     >
                       {page.is_active ? 'Ativa' : 'Inativa'}
@@ -318,19 +317,19 @@ export default function Dashboard() {
                         className="w-4 h-4 rounded-full border-2 border-white shadow-sm"
                         style={{ backgroundColor: page.theme.primary_color }}
                       />
-                      <span className="text-xs text-gray-500">/{page.slug}</span>
+                      <span className="text-xs text-[var(--text-secondary)]">/{page.slug}</span>
                     </div>
                     <div className="flex items-center space-x-2">
                       <Link
                         to={`/checkout/${page.slug}`}
-                        className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                        className="p-1 text-[var(--text-secondary)] hover:text-[var(--text-color)] transition-colors"
                         title="Preview"
                       >
                         <EyeIcon className="h-4 w-4" />
                       </Link>
                       <Link
                         to={`/checkout-pages/${page.id}/edit`}
-                        className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
+                        className="text-sm text-[var(--primary-bg)] hover:text-[var(--primary-hover)] font-medium"
                       >
                         Editar
                       </Link>

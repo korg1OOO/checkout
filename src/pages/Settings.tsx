@@ -13,6 +13,7 @@ import {
   BellIcon,
   ShieldCheckIcon,
   KeyIcon,
+  GlobeAltIcon,
 } from '@heroicons/react/24/outline';
 
 const profileSchema = yup.object({
@@ -36,6 +37,14 @@ const totpSchema = yup.object({
     .string()
     .matches(/^\d{6}$/, 'O código TOTP deve ser um número de 6 dígitos')
     .required('O código TOTP é obrigatório'),
+});
+
+const deliveryEmailSchema = yup.object({
+  deliveryEmail: yup.string().email('Email inválido').nullable(),
+});
+
+const utmifySchema = yup.object({
+  utmifyKey: yup.string().nullable(),
 });
 
 interface ProfileData {
@@ -77,6 +86,10 @@ export default function Settings() {
   const [totpSecret, setTotpSecret] = useState<string | null>(null);
   const [qrCodeUri, setQrCodeUri] = useState<string | null>(null);
   const [show2FAModal, setShow2FAModal] = useState(false);
+  const [pixels, setPixels] = useState<string[]>([]);
+  const [newPixel, setNewPixel] = useState<string>('');
+  const [deliveryEmail, setDeliveryEmail] = useState<string>('');
+  const [utmifyKey, setUtmifyKey] = useState<string>('');
 
   const profileForm = useForm<ProfileData>({
     resolver: yupResolver(profileSchema),
@@ -96,6 +109,16 @@ export default function Settings() {
     resolver: yupResolver(totpSchema),
   });
 
+  const deliveryEmailForm = useForm<{ deliveryEmail: string }>({
+    resolver: yupResolver(deliveryEmailSchema),
+    defaultValues: { deliveryEmail: '' },
+  });
+
+  const utmifyForm = useForm<{ utmifyKey: string }>({
+    resolver: yupResolver(utmifySchema),
+    defaultValues: { utmifyKey: '' },
+  });
+
   useEffect(() => {
     if (!user || !session || loading) return;
 
@@ -113,10 +136,10 @@ export default function Settings() {
         profileForm.setValue('email', refreshedUser?.email || '');
         setPendingEmail(refreshedUser?.new_email || null);
 
-        // Fetch or initialize user_profiles
+        // Fetch or initialize user_profiles with additional fields
         let { data: profileData, error: profileError } = await supabase
           .from('user_profiles')
-          .select('company, website')
+          .select('company, website, delivery_email, utmify_key')
           .eq('user_id', user.id)
           .maybeSingle();
 
@@ -128,16 +151,20 @@ export default function Settings() {
         if (!profileData) {
           const { error: insertError } = await supabase
             .from('user_profiles')
-            .insert({ user_id: user.id, company: null, website: null });
+            .insert({ user_id: user.id, company: null, website: null, delivery_email: null, utmify_key: null });
           if (insertError) {
             console.error('Profile insert error:', insertError);
             throw new Error(`Erro ao criar perfil: ${insertError.message}`);
           }
-          profileData = { company: null, website: null };
+          profileData = { company: null, website: null, delivery_email: null, utmify_key: null };
         }
 
         profileForm.setValue('company', profileData.company || '');
         profileForm.setValue('website', profileData.website || '');
+        setDeliveryEmail(profileData.delivery_email || '');
+        deliveryEmailForm.setValue('deliveryEmail', profileData.delivery_email || '');
+        setUtmifyKey(profileData.utmify_key || '');
+        utmifyForm.setValue('utmifyKey', profileData.utmify_key || '');
 
         // Fetch or initialize user_preferences
         let { data: prefsData, error: prefsError } = await supabase
@@ -180,6 +207,17 @@ export default function Settings() {
           mobile_notifications: prefsData.mobile_notifications ?? false,
         });
 
+        // Fetch pixels from user_pixels table (assuming it exists)
+        const { data: pixelsData, error: pixelsError } = await supabase
+          .from('user_pixels')
+          .select('pixel_id')
+          .eq('user_id', user.id);
+        if (pixelsError) {
+          console.error('Pixels fetch error:', pixelsError);
+          throw new Error(`Erro ao buscar pixels: ${pixelsError.message}`);
+        }
+        setPixels(pixelsData?.map((p: { pixel_id: string }) => p.pixel_id) || []);
+
         // Check 2FA status
         const { data: mfaData, error: mfaError } = await supabase.auth.mfa.listFactors();
         if (mfaError) {
@@ -194,7 +232,7 @@ export default function Settings() {
     };
 
     fetchProfileAndPrefs();
-  }, [user, session, loading, profileForm]);
+  }, [user, session, loading, profileForm, deliveryEmailForm, utmifyForm]);
 
   const onProfileSubmit = async (data: ProfileData) => {
     if (!user || !session) {
@@ -495,6 +533,97 @@ export default function Settings() {
     }
   };
 
+  const addPixel = async () => {
+    if (!user || !session || !newPixel.trim()) return;
+
+    try {
+      const { error } = await supabase
+        .from('user_pixels')
+        .insert({ user_id: user.id, pixel_id: newPixel.trim() });
+
+      if (error) {
+        console.error('Pixel insert error:', error);
+        throw new Error('Erro ao adicionar pixel');
+      }
+
+      setPixels([...pixels, newPixel.trim()]);
+      setNewPixel('');
+      toast.success('Pixel adicionado com sucesso!');
+    } catch (error: any) {
+      toast.error(error.message || 'Falha ao adicionar pixel');
+    }
+  };
+
+  const removePixel = async (pixelToRemove: string) => {
+    if (!user || !session) return;
+
+    try {
+      const { error } = await supabase
+        .from('user_pixels')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('pixel_id', pixelToRemove);
+
+      if (error) {
+        console.error('Pixel delete error:', error);
+        throw new Error('Erro ao remover pixel');
+      }
+
+      setPixels(pixels.filter((p) => p !== pixelToRemove));
+      toast.success('Pixel removido com sucesso!');
+    } catch (error: any) {
+      toast.error(error.message || 'Falha ao remover pixel');
+    }
+  };
+
+  const onDeliveryEmailSubmit = async (data: { deliveryEmail: string }) => {
+    if (!user || !session) {
+      toast.error('Você precisa estar logado para atualizar o email de entrega');
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('user_profiles')
+        .update({ delivery_email: data.deliveryEmail || null })
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('Delivery email update error:', error);
+        throw new Error('Erro ao atualizar email de entrega');
+      }
+
+      setDeliveryEmail(data.deliveryEmail);
+      toast.success('Email de entrega atualizado com sucesso!');
+    } catch (error: any) {
+      toast.error(error.message || 'Falha ao atualizar email de entrega');
+    }
+  };
+
+  const onUtmifySubmit = async (data: { utmifyKey: string }) => {
+    if (!user || !session) {
+      toast.error('Você precisa estar logado para atualizar a chave Utmify');
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('user_profiles')
+        .update({ utmify_key: data.utmifyKey || null })
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('Utmify key update error:', error);
+        throw new Error('Erro ao atualizar chave Utmify');
+      }
+
+      setUtmifyKey(data.utmifyKey);
+      toast.success('Integração Utmify atualizada com sucesso!');
+    } catch (error: any) {
+      toast.error(error.message || 'Falha ao atualizar chave Utmify');
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -523,6 +652,7 @@ export default function Settings() {
     { id: 'billing', name: 'Cobrança', icon: CreditCardIcon },
     { id: 'notifications', name: 'Notificações', icon: BellIcon },
     { id: 'security', name: 'Segurança', icon: ShieldCheckIcon },
+    { id: 'connections', name: 'Conexões', icon: GlobeAltIcon },
   ];
 
   return (
@@ -549,8 +679,8 @@ export default function Settings() {
                   }}
                   className={`flex items-center space-x-3 px-3 py-2 text-sm sm:text-base font-medium rounded-lg transition-colors whitespace-nowrap ${
                     activeTab === tab.id
-                      ? 'bg-indigo-100 dark:bg-gray-600 text-indigo-700 dark:!text-indigo-200 border border-indigo-200 dark:border-gray-600'
-                      : 'text-gray-700 dark:!text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'
+                      ? 'bg-indigo-100 dark:bg-gray-800 text-indigo-700 dark:!text-white border border-indigo-200 dark:border-gray-800'
+                      : 'text-gray-700 dark:!text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
                   }`}
                 >
                   <tab.icon className="h-5 w-5" />
@@ -562,7 +692,7 @@ export default function Settings() {
 
           <div className="flex-1 mt-4 lg:mt-0">
             {activeTab === 'profile' && (
-              <div className="bg-white dark:bg-gray-700 rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-gray-600">
+              <div className="bg-white dark:bg-black rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-black">
                 <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:!text-white mb-4 sm:mb-6">
                   Informações do Perfil
                 </h2>
@@ -575,7 +705,7 @@ export default function Settings() {
                       <input
                         {...profileForm.register('name')}
                         type="text"
-                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:!text-gray-100"
+                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 bg-white dark:bg-black text-gray-900 dark:!text-white"
                         placeholder="Digite seu nome completo"
                       />
                       {profileForm.formState.errors.name && (
@@ -592,7 +722,7 @@ export default function Settings() {
                       <input
                         {...profileForm.register('email')}
                         type="email"
-                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:!text-gray-100"
+                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 bg-white dark:bg-black text-gray-900 dark:!text-white"
                         placeholder="Digite seu email"
                       />
                       {profileForm.formState.errors.email && (
@@ -623,7 +753,7 @@ export default function Settings() {
                       <input
                         {...profileForm.register('company')}
                         type="text"
-                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:!text-gray-100"
+                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 bg-white dark:bg-black text-gray-900 dark:!text-white"
                         placeholder="Nome da sua empresa"
                       />
                     </div>
@@ -635,7 +765,7 @@ export default function Settings() {
                       <input
                         {...profileForm.register('website')}
                         type="url"
-                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:!text-gray-100"
+                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 bg-white dark:bg-black text-gray-900 dark:!text-white"
                         placeholder="https://yourwebsite.com"
                       />
                       {profileForm.formState.errors.website && (
@@ -649,7 +779,7 @@ export default function Settings() {
                   <div className="flex justify-end">
                     <button
                       type="submit"
-                      className="bg-indigo-600 dark:bg-indigo-500 text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm sm:text-base"
+                      className="bg-indigo-600 dark:bg-black text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-indigo-700 dark:hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm sm:text-base"
                       disabled={profileForm.formState.isSubmitting}
                     >
                       {profileForm.formState.isSubmitting ? 'Aguarde...' : 'Salvar Alterações'}
@@ -661,20 +791,20 @@ export default function Settings() {
 
             {activeTab === 'billing' && (
               <div className="space-y-4 sm:space-y-6">
-                <div className="bg-white dark:bg-gray-700 rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-gray-600">
+                <div className="bg-white dark:bg-black rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-black">
                   <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:!text-white mb-4 sm:mb-6">
                     Plano Atual
                   </h2>
-                  <div className="plan-card border border-indigo-200 dark:border-gray-600 rounded-lg p-4 sm:p-6">
+                  <div className="plan-card border border-indigo-200 dark:border-gray-800 rounded-lg p-4 sm:p-6">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                       <div>
-                        <h3 className="text-base sm:text-lg font-semibold text-indigo-700 dark:text-indigo-200">
+                        <h3 className="text-base sm:text-lg font-semibold text-indigo-700 dark:!text-white">
                           Plano Gratuito
                         </h3>
-                        <p className="text-indigo-600 dark:text-gray-300 mt-1 text-sm sm:text-base">
+                        <p className="text-indigo-600 dark:!text-gray-300 mt-1 text-sm sm:text-base">
                           Perfeito para começar
                         </p>
-                        <ul className="mt-3 sm:mt-4 space-y-1 sm:space-y-2 text-xs sm:text-sm text-indigo-800 dark:text-gray-200">
+                        <ul className="mt-3 sm:mt-4 space-y-1 sm:space-y-2 text-xs sm:text-sm text-indigo-800 dark:!text-gray-200">
                           <li>• Até 3 páginas de checkout</li>
                           <li>• Personalização básica</li>
                           <li>• Taxa de transação de 5%</li>
@@ -682,10 +812,10 @@ export default function Settings() {
                         </ul>
                       </div>
                       <div className="text-right">
-                        <span className="text-xl sm:text-2xl font-bold text-indigo-700 dark:text-indigo-200">
+                        <span className="text-xl sm:text-2xl font-bold text-indigo-700 dark:!text-white">
                           R$0
                         </span>
-                        <p className="text-indigo-600 dark:text-gray-300 text-sm sm:text-base">/mês</p>
+                        <p className="text-indigo-600 dark:!text-gray-300 text-sm sm:text-base">/mês</p>
                       </div>
                     </div>
                   </div>
@@ -695,7 +825,7 @@ export default function Settings() {
                       Opções de Upgrade
                     </h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                      <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-3 sm:p-4">
+                      <div className="border border-gray-200 dark:border-gray-800 rounded-lg p-3 sm:p-4">
                         <h4 className="font-semibold text-gray-900 dark:!text-white text-sm sm:text-base">
                           Plano Pro
                         </h4>
@@ -708,12 +838,12 @@ export default function Settings() {
                           <li>• Taxa de transação de 3%</li>
                           <li>• Suporte prioritário</li>
                         </ul>
-                        <button className="w-full mt-3 sm:mt-4 bg-indigo-600 dark:bg-indigo-500 text-white py-2 rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 transition-colors text-sm sm:text-base">
+                        <button className="w-full mt-3 sm:mt-4 bg-indigo-600 dark:bg-black text-white py-2 rounded-lg hover:bg-indigo-700 dark:hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 transition-colors text-sm sm:text-base">
                           Upgrade para Pro
                         </button>
                       </div>
 
-                      <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-3 sm:p-4">
+                      <div className="border border-gray-200 dark:border-gray-800 rounded-lg p-3 sm:p-4">
                         <h4 className="font-semibold text-gray-900 dark:!text-white text-sm sm:text-base">
                           Empresarial
                         </h4>
@@ -726,7 +856,7 @@ export default function Settings() {
                           <li>• Taxa de transação de 1%</li>
                           <li>• Suporte dedicado</li>
                         </ul>
-                        <button className="w-full mt-3 sm:mt-4 bg-gray-600 dark:bg-gray-500 text-white py-2 rounded-lg hover:bg-gray-700 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-600 dark:focus:ring-gray-500 transition-colors text-sm sm:text-base">
+                        <button className="w-full mt-3 sm:mt-4 bg-gray-600 dark:bg-black text-white py-2 rounded-lg hover:bg-gray-700 dark:hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-600 dark:focus:ring-gray-500 transition-colors text-sm sm:text-base">
                           Contatar Vendas
                         </button>
                       </div>
@@ -734,7 +864,7 @@ export default function Settings() {
                   </div>
                 </div>
 
-                <div className="bg-white dark:bg-gray-700 rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-gray-600">
+                <div className="bg-white dark:bg-black rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-black">
                   <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:!text-white mb-4 sm:mb-6">
                     Histórico de Cobrança
                   </h2>
@@ -748,7 +878,7 @@ export default function Settings() {
             )}
 
             {activeTab === 'notifications' && (
-              <div className="bg-white dark:bg-gray-700 rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-gray-600">
+              <div className="bg-white dark:bg-black rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-black">
                 <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:!text-white mb-4 sm:mb-6">
                   Preferências de Notificação
                 </h2>
@@ -798,14 +928,14 @@ export default function Settings() {
                               }
                               className="sr-only peer"
                             />
-                            <div className="w-10 h-5 sm:w-11 sm:h-6 bg-gray-200 dark:bg-gray-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-300 dark:peer-focus:ring-indigo-400 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-200 dark:after:border-gray-600 after:border after:rounded-full after:h-4 after:w-4 sm:after:h-5 sm:after:w-5 after:transition-all peer-checked:bg-indigo-600 dark:peer-checked:bg-indigo-500"></div>
+                            <div className="w-10 h-5 sm:w-11 sm:h-6 bg-gray-200 dark:bg-gray-800 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-300 dark:peer-focus:ring-indigo-400 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-200 dark:after:border-gray-800 after:border after:rounded-full after:h-4 after:w-4 sm:after:h-5 sm:after:w-5 after:transition-all peer-checked:bg-indigo-600 dark:peer-checked:bg-indigo-500"></div>
                           </label>
                         </div>
                       ))}
                     </div>
                   </div>
 
-                  <div className="border-t border-gray-200 dark:border-gray-600 pt-4 sm:pt-6">
+                  <div className="border-t border-gray-200 dark:border-black pt-4 sm:pt-6">
                     <h3 className="text-sm sm:text-md font-semibold text-gray-900 dark:!text-white mb-3 sm:mb-4">
                       Notificações Push
                     </h3>
@@ -840,17 +970,17 @@ export default function Settings() {
                               }
                               className="sr-only peer"
                             />
-                            <div className="w-10 h-5 sm:w-11 sm:h-6 bg-gray-200 dark:bg-gray-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-300 dark:peer-focus:ring-indigo-400 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-200 dark:after:border-gray-600 after:border after:rounded-full after:h-4 after:w-4 sm:after:h-5 sm:after:w-5 after:transition-all peer-checked:bg-indigo-600 dark:peer-checked:bg-indigo-500"></div>
+                            <div className="w-10 h-5 sm:w-11 sm:h-6 bg-gray-200 dark:bg-gray-800 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-300 dark:peer-focus:ring-indigo-400 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-200 dark:after:border-gray-800 after:border after:rounded-full after:h-4 after:w-4 sm:after:h-5 sm:after:w-5 after:transition-all peer-checked:bg-indigo-600 dark:peer-checked:bg-indigo-500"></div>
                           </label>
                         </div>
                       ))}
                     </div>
                   </div>
 
-                  <div className="flex justify-end pt-4 sm:pt-6 border-t border-gray-200 dark:border-gray-600">
+                  <div className="flex justify-end pt-4 sm:pt-6 border-t border-gray-200 dark:border-black">
                     <button
                       onClick={onNotificationSubmit}
-                      className="bg-indigo-600 dark:bg-indigo-500 text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 transition-colors text-sm sm:text-base"
+                      className="bg-indigo-600 dark:bg-black text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-indigo-700 dark:hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 transition-colors text-sm sm:text-base"
                     >
                       Salvar Preferências
                     </button>
@@ -861,7 +991,7 @@ export default function Settings() {
 
             {activeTab === 'security' && (
               <div className="space-y-4 sm:space-y-6">
-                <div className="bg-white dark:bg-gray-700 rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-gray-600">
+                <div className="bg-white dark:bg-black rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-black">
                   <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:!text-white mb-4 sm:mb-6">
                     Alterar Senha
                   </h2>
@@ -873,7 +1003,7 @@ export default function Settings() {
                       <input
                         {...passwordForm.register('currentPassword')}
                         type="password"
-                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:!text-gray-100"
+                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 bg-white dark:bg-black text-gray-900 dark:!text-white"
                         placeholder="Digite sua senha atual"
                       />
                       {passwordForm.formState.errors.currentPassword && (
@@ -890,7 +1020,7 @@ export default function Settings() {
                       <input
                         {...passwordForm.register('newPassword')}
                         type="password"
-                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:!text-gray-100"
+                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 bg-white dark:bg-black text-gray-900 dark:!text-white"
                         placeholder="Digite sua nova senha"
                       />
                       {passwordForm.formState.errors.newPassword && (
@@ -907,7 +1037,7 @@ export default function Settings() {
                       <input
                         {...passwordForm.register('confirmPassword')}
                         type="password"
-                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:!text-gray-100"
+                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 bg-white dark:bg-black text-gray-900 dark:!text-white"
                         placeholder="Confirme sua nova senha"
                       />
                       {passwordForm.formState.errors.confirmPassword && (
@@ -920,7 +1050,7 @@ export default function Settings() {
                     <div className="flex justify-end">
                       <button
                         type="submit"
-                        className="bg-indigo-600 dark:bg-indigo-500 text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm sm:text-base"
+                        className="bg-indigo-600 dark:bg-black text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-indigo-700 dark:hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm sm:text-base"
                         disabled={passwordForm.formState.isSubmitting}
                       >
                         {passwordForm.formState.isSubmitting ? 'Aguarde...' : 'Atualizar Senha'}
@@ -929,11 +1059,11 @@ export default function Settings() {
                   </form>
                 </div>
 
-                <div className="bg-white dark:bg-gray-700 rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-gray-600">
+                <div className="bg-white dark:bg-black rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-black">
                   <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:!text-white mb-4 sm:mb-6">
                     Autenticação de Dois Fatores
                   </h2>
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 bg-gray-50 dark:bg-gray-800 rounded-lg gap-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 bg-gray-50 dark:bg-black rounded-lg gap-4">
                     <div className="flex items-center space-x-3">
                       <ShieldCheckIcon className="h-6 w-6 sm:h-8 sm:w-8 text-gray-400 dark:!text-gray-500" />
                       <div>
@@ -952,12 +1082,12 @@ export default function Settings() {
                       className={`bg-${
                         is2FAEnabled ? 'red' : 'indigo'
                       }-600 dark:bg-${
-                        is2FAEnabled ? 'red' : 'indigo'
-                      }-500 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-${
+                        is2FAEnabled ? 'red' : 'black'
+                      } text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-${
                         is2FAEnabled ? 'red' : 'indigo'
                       }-700 dark:hover:bg-${
-                        is2FAEnabled ? 'red' : 'indigo'
-                      }-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-${
+                        is2FAEnabled ? 'red' : 'gray-900'
+                      } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-${
                         is2FAEnabled ? 'red' : 'indigo'
                       }-600 dark:focus:ring-${
                         is2FAEnabled ? 'red' : 'indigo'
@@ -970,7 +1100,7 @@ export default function Settings() {
 
                 {show2FAModal && (
                   <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white dark:bg-gray-700 rounded-xl p-6 w-full max-w-md">
+                    <div className="bg-white dark:bg-black rounded-xl p-6 w-full max-w-md">
                       <h3 className="text-lg font-semibold text-gray-900 dark:!text-white mb-4">
                         Configurar Autenticação de Dois Fatores
                       </h3>
@@ -1007,7 +1137,7 @@ export default function Settings() {
                           <input
                             {...totpForm.register('totpCode')}
                             type="text"
-                            className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:!text-gray-100"
+                            className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 bg-white dark:bg-black text-gray-900 dark:!text-white"
                             placeholder="Digite o código de 6 dígitos"
                           />
                           {totpForm.formState.errors.totpCode && (
@@ -1025,14 +1155,14 @@ export default function Settings() {
                               setQrCodeUri(null);
                               totpForm.reset();
                             }}
-                            className="bg-gray-300 dark:bg-gray-600 text-gray-900 dark:!text-white px-4 py-2 rounded-lg hover:bg-gray-400 dark:hover:bg-gray-500 transition-colors text-sm"
+                            className="bg-gray-300 dark:bg-gray-800 text-gray-900 dark:!text-white px-4 py-2 rounded-lg hover:bg-gray-400 dark:hover:bg-gray-700 transition-colors text-sm"
                           >
                             Cancelar
                           </button>
                           <button
                             type="submit"
                             disabled={totpForm.formState.isSubmitting}
-                            className="bg-indigo-600 dark:bg-indigo-500 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+                            className="bg-indigo-600 dark:bg-black text-white px-4 py-2 rounded-lg hover:bg-indigo-700 dark:hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
                           >
                             {totpForm.formState.isSubmitting ? 'Aguarde...' : 'Verificar Código'}
                           </button>
@@ -1042,12 +1172,12 @@ export default function Settings() {
                   </div>
                 )}
 
-                <div className="bg-white dark:bg-gray-700 rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-gray-600">
+                <div className="bg-white dark:bg-black rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-black">
                   <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:!text-white mb-4 sm:mb-6">
                     Chaves da API
                   </h2>
                   <div className="space-y-3 sm:space-y-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 border border-gray-200 dark:border-gray-600 rounded-lg gap-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 border border-gray-200 dark:border-gray-800 rounded-lg gap-4">
                       <div className="flex items-center space-x-3">
                         <KeyIcon className="h-5 w-5 sm:h-6 sm:w-6 text-gray-400 dark:!text-gray-500" />
                         <div>
@@ -1064,12 +1194,131 @@ export default function Settings() {
                       </button>
                     </div>
 
-                    <div className="bg-yellow-50 dark:bg-yellow-900 border border-yellow-200 dark:border-yellow-700 rounded-lg p-3 sm:p-4">
+                    <div className="bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 sm:p-4">
                       <p className="text-yellow-800 dark:!text-yellow-200 text-xs sm:text-sm">
                         ⚠️ As chaves da API fornecem acesso à sua conta. Mantenha-as seguras e nunca as
                         compartilhe publicamente.
                       </p>
                     </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'connections' && (
+              <div className="bg-white dark:bg-black rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-black">
+                <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:!text-white mb-4 sm:mb-6">
+                  Conexões
+                </h2>
+                <div className="space-y-8">
+                  {/* Pixels Section */}
+                  <div>
+                    <h3 className="text-sm sm:text-md font-semibold text-gray-900 dark:!text-white mb-3 sm:mb-4">
+                      Pixels do Facebook
+                    </h3>
+                    <p className="text-xs sm:text-sm text-gray-600 dark:!text-gray-400 mb-4">
+                      Adicione pixels para suas campanhas. Você pode adicionar quantos quiser.
+                    </p>
+                    <div className="space-y-2 mb-4">
+                      {pixels.length > 0 ? (
+                        pixels.map((pixel, index) => (
+                          <div key={index} className="flex items-center justify-between p-2 border border-gray-200 dark:border-gray-800 rounded-lg">
+                            <span className="text-sm text-gray-900 dark:!text-white">{pixel}</span>
+                            <button
+                              onClick={() => removePixel(pixel)}
+                              className="text-red-600 dark:!text-red-400 hover:text-red-700 dark:hover:!text-red-300 text-sm"
+                            >
+                              Remover
+                            </button>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-gray-600 dark:!text-gray-400">Nenhum pixel adicionado ainda.</p>
+                      )}
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="text"
+                        value={newPixel}
+                        onChange={(e) => setNewPixel(e.target.value)}
+                        className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-800 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 bg-white dark:bg-black text-gray-900 dark:!text-white"
+                        placeholder="Digite o ID do pixel"
+                      />
+                      <button
+                        onClick={addPixel}
+                        className="bg-indigo-600 dark:bg-black text-white px-4 py-2 rounded-lg hover:bg-indigo-700 dark:hover:bg-gray-900 transition-colors text-sm"
+                      >
+                        Adicionar
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Provedor de Email Section */}
+                  <div className="border-t border-gray-200 dark:border-black pt-4 sm:pt-6">
+                    <h3 className="text-sm sm:text-md font-semibold text-gray-900 dark:!text-white mb-3 sm:mb-4">
+                      Provedor de Email
+                    </h3>
+                    <p className="text-xs sm:text-sm text-gray-600 dark:!text-gray-400 mb-4">
+                      Adicione um email personalizado para entrega de produtos.
+                    </p>
+                    <form onSubmit={deliveryEmailForm.handleSubmit(onDeliveryEmailSubmit)} className="space-y-4">
+                      <div>
+                        <input
+                          {...deliveryEmailForm.register('deliveryEmail')}
+                          type="email"
+                          className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 bg-white dark:bg-black text-gray-900 dark:!text-white"
+                          placeholder="Digite o email de entrega"
+                        />
+                        {deliveryEmailForm.formState.errors.deliveryEmail && (
+                          <p className="mt-1 text-xs sm:text-sm text-red-600 dark:!text-red-400">
+                            {deliveryEmailForm.formState.errors.deliveryEmail.message}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex justify-end">
+                        <button
+                          type="submit"
+                          className="bg-indigo-600 dark:bg-black text-white px-4 py-2 rounded-lg hover:bg-indigo-700 dark:hover:bg-gray-900 transition-colors text-sm"
+                          disabled={deliveryEmailForm.formState.isSubmitting}
+                        >
+                          {deliveryEmailForm.formState.isSubmitting ? 'Aguarde...' : 'Salvar Email'}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+
+                  {/* Utmify Section */}
+                  <div className="border-t border-gray-200 dark:border-black pt-4 sm:pt-6">
+                    <h3 className="text-sm sm:text-md font-semibold text-gray-900 dark:!text-white mb-3 sm:mb-4">
+                      Integração Utmify
+                    </h3>
+                    <p className="text-xs sm:text-sm text-gray-600 dark:!text-gray-400 mb-4">
+                      Integre com a plataforma Utmify fornecendo sua chave de API.
+                    </p>
+                    <form onSubmit={utmifyForm.handleSubmit(onUtmifySubmit)} className="space-y-4">
+                      <div>
+                        <input
+                          {...utmifyForm.register('utmifyKey')}
+                          type="text"
+                          className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 bg-white dark:bg-black text-gray-900 dark:!text-white"
+                          placeholder="Digite a chave de API Utmify"
+                        />
+                        {utmifyForm.formState.errors.utmifyKey && (
+                          <p className="mt-1 text-xs sm:text-sm text-red-600 dark:!text-red-400">
+                            {utmifyForm.formState.errors.utmifyKey.message}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex justify-end">
+                        <button
+                          type="submit"
+                          className="bg-indigo-600 dark:bg-black text-white px-4 py-2 rounded-lg hover:bg-indigo-700 dark:hover:bg-gray-900 transition-colors text-sm"
+                          disabled={utmifyForm.formState.isSubmitting}
+                        >
+                          {utmifyForm.formState.isSubmitting ? 'Aguarde...' : 'Salvar Integração'}
+                        </button>
+                      </div>
+                    </form>
                   </div>
                 </div>
               </div>

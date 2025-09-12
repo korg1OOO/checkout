@@ -77,14 +77,14 @@ export default function AuthForm() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-cyan-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[linear-gradient(to_bottom_right,#000_0%,#000_50%,#fff_100%)] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
           <div className="flex justify-center">
-            <CreditCardIcon className="h-12 w-12 text-indigo-600" />
+            <CreditCardIcon className="h-12 w-12 text-gray-400" />
           </div>
-          <h2 className="mt-6 text-3xl font-bold text-gray-900">CheckoutPro</h2>
-          <p className="mt-2 text-sm text-gray-600">
+          <h2 className="mt-6 text-3xl font-bold text-gray-300">CheckoutPro</h2>
+          <p className="mt-2 text-sm text-gray-400">
             {isSignUp ? 'Crie sua conta' : 'Entre na sua conta'}
           </p>
         </div>
@@ -93,81 +93,81 @@ export default function AuthForm() {
           <div className="space-y-4">
             {isSignUp && (
               <div>
-                <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="name" className="block text-sm font-medium text-gray-300">
                   Nome Completo
                 </label>
                 <input
                   {...register('name')}
                   type="text"
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-600 bg-gray-800 text-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                   placeholder="Digite seu nome completo"
                 />
                 {errors.name && (
-                  <p className="mt-1 text-sm text-red-600">{errors.name.message}</p>
+                  <p className="mt-1 text-sm text-red-500">{errors.name.message}</p>
                 )}
               </div>
             )}
 
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="email" className="block text-sm font-medium text-gray-300">
                 Endereço de Email
               </label>
               <input
                 {...register('email')}
                 type="email"
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                className="mt-1 block w-full px-3 py-2 border border-gray-600 bg-gray-800 text-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                 placeholder="Digite seu email"
               />
               {errors.email && (
-                <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
+                <p className="mt-1 text-sm text-red-500">{errors.email.message}</p>
               )}
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="password" className="block text-sm font-medium text-gray-300">
                 Senha
               </label>
               <input
                 {...register('password')}
                 type="password"
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                placeholder="Digite sua senha"
+                className="mt-1 block w-full px-3 py-2 border border-gray-600 bg-gray-800 text-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                placeholder="••••••••"
               />
               {errors.password && (
-                <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>
+                <p className="mt-1 text-sm text-red-500">{errors.password.message}</p>
               )}
             </div>
 
             {isSignUp && (
               <div>
-                <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-300">
                   Confirmar Senha
                 </label>
                 <input
                   {...register('confirmPassword')}
                   type="password"
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-600 bg-gray-800 text-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                   placeholder="Confirme sua senha"
                 />
                 {errors.confirmPassword && (
-                  <p className="mt-1 text-sm text-red-600">{errors.confirmPassword.message}</p>
+                  <p className="mt-1 text-sm text-red-500">{errors.confirmPassword.message}</p>
                 )}
               </div>
             )}
 
             {requires2FA && (
               <div>
-                <label htmlFor="totpCode" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="totpCode" className="block text-sm font-medium text-gray-300">
                   Código TOTP
                 </label>
                 <input
                   {...register('totpCode')}
                   type="text"
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-600 bg-gray-800 text-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                   placeholder="Digite o código de 6 dígitos"
                 />
                 {errors.totpCode && (
-                  <p className="mt-1 text-sm text-red-600">{errors.totpCode.message}</p>
+                  <p className="mt-1 text-sm text-red-500">{errors.totpCode.message}</p>
                 )}
               </div>
             )}
@@ -187,7 +187,7 @@ export default function AuthForm() {
             <button
               type="button"
               onClick={toggleMode}
-              className="text-sm text-indigo-600 hover:text-indigo-700"
+              className="text-sm text-gray-400 hover:text-gray-300"
             >
               {isSignUp
                 ? 'Já tem uma conta? Entre'

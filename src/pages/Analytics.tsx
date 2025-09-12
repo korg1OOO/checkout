@@ -272,8 +272,8 @@ export default function Analytics() {
   if (!user) {
     return (
       <div className="text-center py-12">
-        <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">Please log in</h3>
-        <p className="text-sm sm:text-base text-gray-600">You need to be logged in to view your analytics.</p>
+        <h3 className="text-base sm:text-lg font-medium text-[var(--text-color)] mb-2">Please log in</h3>
+        <p className="text-sm sm:text-base text-[var(--text-secondary)]">You need to be logged in to view your analytics.</p>
       </div>
     );
   }
@@ -283,8 +283,8 @@ export default function Analytics() {
       {/* Time Range Selector */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Análises</h1>
-          <p className="text-sm sm:text-base text-gray-600 mt-1">Acompanhe o desempenho das suas vendas e insights</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-[var(--text-color)]">Análises</h1>
+          <p className="text-sm sm:text-base text-[var(--text-secondary)] mt-1">Acompanhe o desempenho das suas vendas e insights</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {['7d', '30d', '90d', '1y'].map((range) => (
@@ -293,8 +293,8 @@ export default function Analytics() {
               onClick={() => setTimeRange(range)}
               className={`px-3 py-2 text-xs sm:text-sm font-medium rounded-lg transition-colors ${
                 timeRange === range
-                  ? 'bg-indigo-600 text-white'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                  ? 'bg-[var(--primary-bg)] text-white'
+                  : 'text-[var(--text-secondary)] hover:text-[var(--text-color)] hover:bg-[var(--border-color)]'
               }`}
             >
               {range === '7d'
@@ -312,11 +312,11 @@ export default function Analytics() {
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         {stats.map((stat) => (
-          <div key={stat.name} className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200">
+          <div key={stat.name} className="bg-[var(--sidebar-bg)] rounded-xl p-4 sm:p-6 shadow-sm border border-[var(--border-color)]">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs sm:text-sm font-medium text-gray-600">{stat.name}</p>
-                <p className="text-lg sm:text-2xl font-bold text-gray-900 mt-1">{stat.value}</p>
+                <p className="text-xs sm:text-sm font-medium text-[var(--text-secondary)]">{stat.name}</p>
+                <p className="text-lg sm:text-2xl font-bold text-[var(--text-color)] mt-1">{stat.value}</p>
                 <div className="flex items-center mt-2">
                   <span
                     className={`text-xs sm:text-sm font-medium ${
@@ -325,11 +325,11 @@ export default function Analytics() {
                   >
                     {stat.change}
                   </span>
-                  <span className="text-xs sm:text-sm text-gray-500 ml-1">vs período anterior</span>
+                  <span className="text-xs sm:text-sm text-[var(--text-secondary)] ml-1">vs período anterior</span>
                 </div>
               </div>
-              <div className="p-2 sm:p-3 bg-indigo-100 rounded-lg">
-                <stat.icon className="h-5 sm:h-6 w-5 sm:w-6 text-indigo-600" />
+              <div className="p-2 sm:p-3 bg-[var(--active-bg)] rounded-lg">
+                <stat.icon className="h-5 sm:h-6 w-5 sm:w-6 text-[var(--primary-bg)]" />
               </div>
             </div>
           </div>
@@ -339,8 +339,8 @@ export default function Analytics() {
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-8">
         {/* Revenue Chart */}
-        <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200">
-          <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-4 sm:mb-6">Receita ao Longo do Tempo</h3>
+        <div className="bg-[var(--sidebar-bg)] rounded-xl p-4 sm:p-6 shadow-sm border border-[var(--border-color)]">
+          <h3 className="text-base sm:text-lg font-semibold text-[var(--text-color)] mb-4 sm:mb-6">Receita ao Longo do Tempo</h3>
           <ResponsiveContainer width="100%" height={250} className="min-h-[200px] sm:min-h-[300px]">
             <LineChart data={analytics.revenue_by_day}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -370,8 +370,8 @@ export default function Analytics() {
         </div>
 
         {/* Top Products */}
-        <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200">
-          <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-4 sm:mb-6">Produtos Mais Vendidos</h3>
+        <div className="bg-[var(--sidebar-bg)] rounded-xl p-4 sm:p-6 shadow-sm border border-[var(--border-color)]">
+          <h3 className="text-base sm:text-lg font-semibold text-[var(--text-color)] mb-4 sm:mb-6">Produtos Mais Vendidos</h3>
           <ResponsiveContainer width="100%" height={250} className="min-h-[200px] sm:min-h-[300px]">
             <BarChart data={analytics.top_products} layout="horizontal">
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -385,25 +385,25 @@ export default function Analytics() {
       </div>
 
       {/* Recent Activity */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-        <div className="px-4 sm:px-6 py-4 border-b border-gray-200">
-          <h3 className="text-base sm:text-lg font-semibold text-gray-900">Atividade Recente</h3>
+      <div className="bg-[var(--sidebar-bg)] rounded-xl shadow-sm border border-[var(--border-color)]">
+        <div className="px-4 sm:px-6 py-4 border-b border-[var(--border-color)]">
+          <h3 className="text-base sm:text-lg font-semibold text-[var(--text-color)]">Atividade Recente</h3>
         </div>
         <div className="p-4 sm:p-6">
           <div className="space-y-4">
             {recentActivity.length === 0 ? (
-              <p className="text-sm text-gray-600">No recent activity</p>
+              <p className="text-sm text-[var(--text-secondary)]">No recent activity</p>
             ) : (
               recentActivity.map((activity, index) => (
-                <div key={index} className="flex items-center space-x-3 sm:space-x-4 p-3 sm:p-4 bg-gray-50 rounded-lg">
+                <div key={index} className="flex items-center space-x-3 sm:space-x-4 p-3 sm:p-4 bg-[var(--active-bg)] rounded-lg">
                   <div className="p-2 rounded-full bg-green-100">
                     <ShoppingCartIcon className="h-4 w-4 text-green-600" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs sm:text-sm font-medium text-gray-900 truncate">{activity.action}</p>
-                    <p className="text-xs sm:text-sm text-gray-600 truncate">{activity.details}</p>
+                    <p className="text-xs sm:text-sm font-medium text-[var(--text-color)] truncate">{activity.action}</p>
+                    <p className="text-xs sm:text-sm text-[var(--text-secondary)] truncate">{activity.details}</p>
                   </div>
-                  <span className="text-xs text-gray-500">{activity.time}</span>
+                  <span className="text-xs text-[var(--text-secondary)]">{activity.time}</span>
                 </div>
               ))
             )}
