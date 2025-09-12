@@ -13,6 +13,7 @@ import {
   XMarkIcon,
   SunIcon,
   MoonIcon,
+  ShoppingBagIcon
 } from '@heroicons/react/24/outline';
 import { SidebarProvider } from '../contexts/SidebarContext';
 
@@ -29,6 +30,7 @@ export default function Layout() {
   const navigation = [
     { name: 'Painel', href: '/dashboard', icon: HomeIcon },
     { name: 'Páginas de Checkout', href: '/checkout-pages', icon: CreditCardIcon },
+    { name: 'Produtos', href: '/products', icon: ShoppingBagIcon },
     { name: 'Análises', href: '/analytics', icon: ChartBarIcon },
     { name: 'Configurações', href: '/settings', icon: CogIcon },
   ];

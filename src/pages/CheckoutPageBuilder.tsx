@@ -69,6 +69,7 @@ export default function CheckoutPageBuilder() {
   const [userPixels, setUserPixels] = useState<string[]>([]);
   const [userUtmifyKey, setUserUtmifyKey] = useState<string>('');
   const [userDeliveryEmail, setUserDeliveryEmail] = useState<string>('');
+  const [globalProducts, setGlobalProducts] = useState<Product[]>([]);
 
   const {
     register,
@@ -94,18 +95,18 @@ export default function CheckoutPageBuilder() {
   const watchedLogoUrl = watch('logo_url');
 
   // Toolbox elements for drag-and-drop
-const toolboxItems: LayoutElement[] = React.useMemo(() => [
-  { id: 'toolbox-title', type: 'title', content: { text: 'Título da Página', style: { fontSize: '24px', fontWeight: 'bold', align: 'center' } }, order: 0 },
-  { id: 'toolbox-description', type: 'description', content: { text: 'Descrição da Página', style: { fontSize: '16px', align: 'center' } }, order: 1 },
-  { id: 'toolbox-logo', type: 'logo', content: { url: 'https://example.com/logo.png', style: { align: 'center' } }, order: 2 },
-  { id: 'toolbox-text_field', type: 'text_field', content: { placeholder: 'Novo Campo', required: false }, order: 3 },
-  { id: 'toolbox-button', type: 'button', content: { text: 'Finalizar Compra', style: { align: 'center' } }, order: 4 },
-  { id: 'toolbox-image', type: 'image', content: { url: 'https://example.com/image.jpg', style: { align: 'center' } }, order: 5 },
-  { id: 'toolbox-spacer', type: 'spacer', content: { style: { height: '20px' } }, order: 6 },
-  { id: 'toolbox-divider', type: 'divider', content: { style: { color: '#e5e7eb' } }, order: 7 },
-  { id: 'toolbox-product_list', type: 'product_list', content: {}, order: 8 },
-  { id: 'toolbox-customer_info_form', type: 'customer_info_form', content: {}, order: 9 },
-], []);
+  const toolboxItems: LayoutElement[] = React.useMemo(() => [
+    { id: 'toolbox-title', type: 'title', content: { text: 'Título da Página', style: { fontSize: '24px', fontWeight: 'bold', align: 'center' } }, order: 0 },
+    { id: 'toolbox-description', type: 'description', content: { text: 'Descrição da Página', style: { fontSize: '16px', align: 'center' } }, order: 1 },
+    { id: 'toolbox-logo', type: 'logo', content: { url: 'https://example.com/logo.png', style: { align: 'center' } }, order: 2 },
+    { id: 'toolbox-text_field', type: 'text_field', content: { placeholder: 'Novo Campo', required: false }, order: 3 },
+    { id: 'toolbox-button', type: 'button', content: { text: 'Finalizar Compra', style: { align: 'center' } }, order: 4 },
+    { id: 'toolbox-image', type: 'image', content: { url: 'https://example.com/image.jpg', style: { align: 'center' } }, order: 5 },
+    { id: 'toolbox-spacer', type: 'spacer', content: { style: { height: '20px' } }, order: 6 },
+    { id: 'toolbox-divider', type: 'divider', content: { style: { color: '#e5e7eb' } }, order: 7 },
+    { id: 'toolbox-product_list', type: 'product_list', content: {}, order: 8 },
+    { id: 'toolbox-customer_info_form', type: 'customer_info_form', content: {}, order: 9 },
+  ], []);
 
   // Log navigation details
   useEffect(() => {
@@ -178,231 +179,267 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
     }
   }, [watchedSlug, checkSlugUniqueness, isEditing]);
 
-  // Fetch existing page data and user settings (pixels, utmify, delivery_email)
+  // Fetch existing page data, user settings, and global products
   useEffect(() => {
-  if (!user?.id) {
-    setLoading(false);
-    toast.error('Você precisa estar logado para acessar esta página');
-    navigate('/auth');
-    return;
-  }
-
-  const fetchUserSettings = async () => {
-    try {
-      // Fetch pixels
-      const { data: pixelsData, error: pixelsError } = await supabase
-        .from('user_pixels')
-        .select('pixel_id')
-        .eq('user_id', user.id);
-      if (pixelsError) throw pixelsError;
-      setUserPixels(pixelsData?.map(p => p.pixel_id) || []);
-
-      // Fetch user_profiles for utmify and delivery_email
-      const { data: profileData, error: profileError } = await supabase
-        .from('user_profiles')
-        .select('utmify_key, delivery_email')
-        .eq('user_id', user.id)
-        .single();
-      if (profileError) throw profileError;
-      setUserUtmifyKey(profileData?.utmify_key || '');
-      setUserDeliveryEmail(profileData?.delivery_email || '');
-    } catch (error) {
-      console.error('Error fetching user settings:', error);
-      toast.error('Falha ao carregar configurações do usuário (pixels, Utmify, email)');
-    }
-  };
-
-  fetchUserSettings();
-
-  if (!isEditing) {
-    // Initialize default layout for new pages
-    setLayout([
-      { id: `element-${Date.now()}-1`, type: 'title', content: { text: watchedTitle || 'Título da Página', style: { fontSize: '24px', fontWeight: 'bold', align: 'center' } }, order: 0 },
-      { id: `element-${Date.now()}-2`, type: 'description', content: { text: watchedDescription || 'Descrição da Página', style: { fontSize: '16px', align: 'center' } }, order: 1 },
-      { id: `element-${Date.now()}-3`, type: 'logo', content: { url: watchedLogoUrl || '', style: { align: 'center' } }, order: 2 },
-      { id: `element-${Date.now()}-4`, type: 'product_list', content: {}, order: 3 },
-      { id: `element-${Date.now()}-5`, type: 'customer_info_form', content: {}, order: 4 },
-      { id: `element-${Date.now()}-6`, type: 'button', content: { text: 'Finalizar Compra', style: { align: 'center' } }, order: 5 },
-    ]);
-    setLoading(false);
-    return;
-  }
-
-  const fetchPage = async () => {
-    try {
-      setLoading(true);
-      console.log('Fetching page with id:', id, 'for user:', user.id);
-      const { data, error } = await supabase
-        .from('checkout_pages')
-        .select('*')
-        .eq('id', id)
-        .eq('user_id', user.id)
-        .single();
-
-      console.log('Supabase response:', { data, error });
-      if (error) {
-        if (error.code === 'PGRST116') {
-          throw new Error('Página não encontrada ou você não tem permissão');
-        } else if (error.code === '42501') {
-          throw new Error('Permissão negada. Verifique sua política de acesso do banco de dados');
-        }
-        throw new Error(`Error fetching checkout page: ${error.message} (Code: ${error.code})`);
-      }
-
-      if (!data) {
-        throw new Error('Página não encontrada');
-      }
-
-      const sortedCustomFields = (data.custom_fields || []).map((field: CustomField, index: number) => ({
-        ...field,
-        order: field.order ?? index,
-      })).sort((a: CustomField, b: CustomField) => a.order - b.order);
-
-      const sortedProducts = (data.products || []).map((product: Product, index: number) => ({
-        ...product,
-        order: product.order ?? index,
-      })).sort((a: Product, b: Product) => a.order - b.order);
-
-      const sortedLayout = (data.layout || []).map((element: LayoutElement, index: number) => ({
-        ...element,
-        order: element.order ?? index,
-      })).sort((a: LayoutElement, b: LayoutElement) => a.order - b.order);
-
-      setCheckoutPage(data);
-      setTheme(data.theme || initialTheme);
-      setCustomFields(sortedCustomFields);
-      setProducts(sortedProducts);
-      setLayout(sortedLayout);
-      reset({
-        title: data.title,
-        slug: data.slug,
-        description: data.description || null,
-        logo_url: data.logo_url || null,
-        is_active: data.is_active,
-      });
-    } catch (error: any) {
-      console.error('Error fetching page:', error);
-      toast.error(error.message || 'Falha ao carregar página de checkout');
-      navigate('/checkout-pages');
-    } finally {
+    if (!user?.id) {
       setLoading(false);
+      toast.error('Você precisa estar logado para acessar esta página');
+      navigate('/auth');
+      return;
     }
-  };
 
-  fetchPage();
-}, [id, isEditing, user?.id, navigate, reset]); // Removed theme, watchedTitle, watchedDescription, watchedLogoUrl
+    const fetchUserSettings = async () => {
+      try {
+        // Fetch pixels
+        const { data: pixelsData, error: pixelsError } = await supabase
+          .from('user_pixels')
+          .select('pixel_id')
+          .eq('user_id', user.id);
+        if (pixelsError) throw pixelsError;
+        setUserPixels(pixelsData?.map(p => p.pixel_id) || []);
+
+        // Fetch user_profiles for utmify and delivery_email
+        const { data: profileData, error: profileError } = await supabase
+          .from('user_profiles')
+          .select('utmify_key, delivery_email')
+          .eq('user_id', user.id)
+          .single();
+        if (profileError) throw profileError;
+        setUserUtmifyKey(profileData?.utmify_key || '');
+        setUserDeliveryEmail(profileData?.delivery_email || '');
+      } catch (error) {
+        console.error('Error fetching user settings:', error);
+        toast.error('Falha ao carregar configurações do usuário (pixels, Utmify, email)');
+      }
+    };
+
+    fetchUserSettings();
+
+    const fetchGlobalProducts = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('products')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        setGlobalProducts(data || []);
+      } catch (error) {
+        console.error('Error fetching global products:', error);
+        toast.error('Falha ao carregar produtos');
+      }
+    };
+
+    fetchGlobalProducts();
+
+    const productsSubscription = supabase
+      .channel('global_products_channel')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'products',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => fetchGlobalProducts()
+      )
+      .subscribe();
+
+    if (!isEditing) {
+      // Initialize default layout for new pages
+      setLayout([
+        { id: `element-${Date.now()}-1`, type: 'title', content: { text: watchedTitle || 'Título da Página', style: { fontSize: '24px', fontWeight: 'bold', align: 'center' } }, order: 0 },
+        { id: `element-${Date.now()}-2`, type: 'description', content: { text: watchedDescription || 'Descrição da Página', style: { fontSize: '16px', align: 'center' } }, order: 1 },
+        { id: `element-${Date.now()}-3`, type: 'logo', content: { url: watchedLogoUrl || '', style: { align: 'center' } }, order: 2 },
+        { id: `element-${Date.now()}-4`, type: 'product_list', content: {}, order: 3 },
+        { id: `element-${Date.now()}-5`, type: 'customer_info_form', content: {}, order: 4 },
+        { id: `element-${Date.now()}-6`, type: 'button', content: { text: 'Finalizar Compra', style: { align: 'center' } }, order: 5 },
+      ]);
+      setLoading(false);
+      return;
+    }
+
+    const fetchPage = async () => {
+      try {
+        setLoading(true);
+        console.log('Fetching page with id:', id, 'for user:', user.id);
+        const { data, error } = await supabase
+          .from('checkout_pages')
+          .select('*')
+          .eq('id', id)
+          .eq('user_id', user.id)
+          .single();
+
+        console.log('Supabase response:', { data, error });
+        if (error) {
+          if (error.code === 'PGRST116') {
+            throw new Error('Página não encontrada ou você não tem permissão');
+          } else if (error.code === '42501') {
+            throw new Error('Permissão negada. Verifique sua política de acesso do banco de dados');
+          }
+          throw new Error(`Error fetching checkout page: ${error.message} (Code: ${error.code})`);
+        }
+
+        if (!data) {
+          throw new Error('Página não encontrada');
+        }
+
+        const sortedCustomFields = (data.custom_fields || []).map((field: CustomField, index: number) => ({
+          ...field,
+          order: field.order ?? index,
+        })).sort((a: CustomField, b: CustomField) => a.order - b.order);
+
+        const sortedProducts = (data.products || []).map((product: Product, index: number) => ({
+          ...product,
+          order: product.order ?? index,
+        })).sort((a: Product, b: Product) => a.order - b.order);
+
+        const sortedLayout = (data.layout || []).map((element: LayoutElement, index: number) => ({
+          ...element,
+          order: element.order ?? index,
+        })).sort((a: LayoutElement, b: LayoutElement) => a.order - b.order);
+
+        setCheckoutPage(data);
+        setTheme(data.theme || initialTheme);
+        setCustomFields(sortedCustomFields);
+        setProducts(sortedProducts);
+        setLayout(sortedLayout);
+        reset({
+          title: data.title,
+          slug: data.slug,
+          description: data.description || null,
+          logo_url: data.logo_url || null,
+          is_active: data.is_active,
+        });
+      } catch (error: any) {
+        console.error('Error fetching page:', error);
+        toast.error(error.message || 'Falha ao carregar página de checkout');
+        navigate('/checkout-pages');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPage();
+
+    return () => {
+      productsSubscription.unsubscribe();
+    };
+  }, [id, isEditing, user?.id, navigate, reset]); // Removed theme, watchedTitle, watchedDescription, watchedLogoUrl
 
   // Real-time subscription
   useEffect(() => {
-  if (!user?.id || !isEditing || !id) return;
+    if (!user?.id || !isEditing || !id) return;
 
-  const subscription = supabase
-    .channel(`checkout_page_${id}`)
-    .on(
-      'postgres_changes',
-      {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'checkout_pages',
-        filter: `id=eq.${id}`,
-      },
-      (payload) => {
-        console.log('Real-time update received:', payload);
-        if (payload.new.user_id === user.id) {
-          const sortedCustomFields = (payload.new.custom_fields || []).map((field: CustomField, index: number) => ({
-            ...field,
-            order: field.order ?? index,
-          })).sort((a: CustomField, b: CustomField) => a.order - b.order);
+    const subscription = supabase
+      .channel(`checkout_page_${id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'checkout_pages',
+          filter: `id=eq.${id}`,
+        },
+        (payload) => {
+          console.log('Real-time update received:', payload);
+          if (payload.new.user_id === user.id) {
+            const sortedCustomFields = (payload.new.custom_fields || []).map((field: CustomField, index: number) => ({
+              ...field,
+              order: field.order ?? index,
+            })).sort((a: CustomField, b: CustomField) => a.order - b.order);
 
-          const sortedProducts = (payload.new.products || []).map((product: Product, index: number) => ({
-            ...product,
-            order: product.order ?? index,
-          })).sort((a: Product, b: Product) => a.order - b.order);
+            const sortedProducts = (payload.new.products || []).map((product: Product, index: number) => ({
+              ...product,
+              order: product.order ?? index,
+            })).sort((a: Product, b: Product) => a.order - b.order);
 
-          const sortedLayout = (payload.new.layout || []).map((element: LayoutElement, index: number) => ({
-            ...element,
-            order: element.order ?? index,
-          })).sort((a: LayoutElement, b: LayoutElement) => a.order - b.order);
+            const sortedLayout = (payload.new.layout || []).map((element: LayoutElement, index: number) => ({
+              ...element,
+              order: element.order ?? index,
+            })).sort((a: LayoutElement, b: LayoutElement) => a.order - b.order);
 
-          setCheckoutPage(payload.new as CheckoutPage);
-          setTheme(payload.new.theme || theme);
-          setCustomFields(sortedCustomFields);
-          setProducts(sortedProducts);
-          setLayout(sortedLayout);
-          reset({
-            title: payload.new.title,
-            slug: payload.new.slug,
-            description: payload.new.description || null,
-            logo_url: payload.new.logo_url || null,
-            is_active: payload.new.is_active,
-          });
+            setCheckoutPage(payload.new as CheckoutPage);
+            setTheme(payload.new.theme || theme);
+            setCustomFields(sortedCustomFields);
+            setProducts(sortedProducts);
+            setLayout(sortedLayout);
+            reset({
+              title: payload.new.title,
+              slug: payload.new.slug,
+              description: payload.new.description || null,
+              logo_url: payload.new.logo_url || null,
+              is_active: payload.new.is_active,
+            });
+          }
         }
-      }
-    )
-    .subscribe((status, err) => {
-      console.log('Subscription status:', status, 'Error:', err);
-      if (err) {
-        console.error('Subscription error:', err);
-        toast.error('Falha ao configurar atualizações em tempo real');
-      }
-    });
+      )
+      .subscribe((status, err) => {
+        console.log('Subscription status:', status, 'Error:', err);
+        if (err) {
+          console.error('Subscription error:', err);
+          toast.error('Falha ao configurar atualizações em tempo real');
+        }
+      });
 
-  subscriptionRef.current = subscription;
+    subscriptionRef.current = subscription;
 
-  return () => {
-    console.log('Unsubscribing from channel:', `checkout_page_${id}`);
-    subscriptionRef.current?.unsubscribe();
-  };
-}, [user?.id, isEditing, id, reset, theme]);
+    return () => {
+      console.log('Unsubscribing from channel:', `checkout_page_${id}`);
+      subscriptionRef.current?.unsubscribe();
+    };
+  }, [user?.id, isEditing, id, reset, theme]);
 
   // Handle drag end for layout
   const onDragEnd = (result: DropResult) => {
-  const { source, destination } = result;
-  if (!destination) return;
+    const { source, destination } = result;
+    if (!destination) return;
 
-  if (source.droppableId === 'toolbox' && destination.droppableId === 'layout') {
-    const draggedItem = toolboxItems[source.index];
-    const newElement: LayoutElement = {
-      id: `element-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      type: draggedItem.type,
-      content: {
-        ...draggedItem.content,
-        text: draggedItem.type === 'title' ? watchedTitle || draggedItem.content.text
-          : draggedItem.type === 'description' ? watchedDescription || draggedItem.content.text
-          : draggedItem.content.text,
-        url: draggedItem.type === 'logo' ? watchedLogoUrl || draggedItem.content.url : draggedItem.content.url,
-        fieldId: draggedItem.type === 'text_field' ? `field_${customFields.length + 1}` : undefined,
-      },
-      order: destination.index,
-    };
-
-    if (newElement.type === 'text_field') {
-      const newField: CustomField = {
-        id: newElement.content.fieldId!,
-        name: `field_${customFields.length + 1}`,
-        label: newElement.content.placeholder || 'Novo Campo',
-        type: 'text',
-        required: newElement.content.required || false,
-        placeholder: newElement.content.placeholder,
-        order: customFields.length,
+    if (source.droppableId === 'toolbox' && destination.droppableId === 'layout') {
+      const draggedItem = toolboxItems[source.index];
+      const newElement: LayoutElement = {
+        id: `element-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        type: draggedItem.type,
+        content: {
+          ...draggedItem.content,
+          text: draggedItem.type === 'title' ? watchedTitle || draggedItem.content.text
+            : draggedItem.type === 'description' ? watchedDescription || draggedItem.content.text
+            : draggedItem.content.text,
+          url: draggedItem.type === 'logo' ? watchedLogoUrl || draggedItem.content.url : draggedItem.content.url,
+          fieldId: draggedItem.type === 'text_field' ? `field_${customFields.length + 1}` : undefined,
+        },
+        order: destination.index,
       };
-      setCustomFields([...customFields, newField]);
-    }
 
-    const newLayout = [...layout];
-    newLayout.splice(destination.index, 0, newElement);
-    const updatedLayout = newLayout.map((item, index) => ({ ...item, order: index }));
-    setLayout(updatedLayout);
-    console.log('Updated layout:', updatedLayout); // Debug log
-  } else if (source.droppableId === 'layout' && destination.droppableId === 'layout') {
-    const newLayout = [...layout];
-    const [movedElement] = newLayout.splice(source.index, 1);
-    newLayout.splice(destination.index, 0, movedElement);
-    const updatedLayout = newLayout.map((item, index) => ({ ...item, order: index }));
-    setLayout(updatedLayout);
-    console.log('Reordered layout:', updatedLayout); // Debug log
-  }
-};
+      if (newElement.type === 'text_field') {
+        const newField: CustomField = {
+          id: newElement.content.fieldId!,
+          name: `field_${customFields.length + 1}`,
+          label: newElement.content.placeholder || 'Novo Campo',
+          type: 'text',
+          required: newElement.content.required || false,
+          placeholder: newElement.content.placeholder,
+          order: customFields.length,
+        };
+        setCustomFields([...customFields, newField]);
+      }
+
+      const newLayout = [...layout];
+      newLayout.splice(destination.index, 0, newElement);
+      const updatedLayout = newLayout.map((item, index) => ({ ...item, order: index }));
+      setLayout(updatedLayout);
+      console.log('Updated layout:', updatedLayout); // Debug log
+    } else if (source.droppableId === 'layout' && destination.droppableId === 'layout') {
+      const newLayout = [...layout];
+      const [movedElement] = newLayout.splice(source.index, 1);
+      newLayout.splice(destination.index, 0, movedElement);
+      const updatedLayout = newLayout.map((item, index) => ({ ...item, order: index }));
+      setLayout(updatedLayout);
+      console.log('Reordered layout:', updatedLayout); // Debug log
+    }
+  };
 
   // Handle drag end for custom fields
   const onDragEndFields = (result: DropResult) => {
@@ -589,20 +626,19 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
     setLayout(layout.filter((el) => el.content.fieldId !== customFields[index].id));
   };
 
-  const addProduct = () => {
-    const newProduct: Product = {
-      id: Date.now().toString(),
-      name: '',
-      description: '',
-      price: 0,
-      type: 'digital',
-      is_active: true,
-      requires_shipping: false,
-      image_url: '',
-      digital_file_url: '',
+  const addFromGlobal = (globalProduct: Product) => {
+    if (products.some(p => p.id === globalProduct.id)) {
+      toast.error('Produto já adicionado');
+      return;
+    }
+
+    const newProd: Product = {
+      ...globalProduct,
+      id: `${globalProduct.id}-page-${Date.now()}`, // Unique id for page instance
       order: products.length,
     };
-    setProducts([...products, newProduct]);
+
+    setProducts([...products, newProd]);
   };
 
   const updateProduct = (index: number, product: Partial<Product>) => {
@@ -1138,14 +1174,6 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
               <div className="bg-[var(--sidebar-bg)] rounded-xl p-4 sm:p-6 shadow-sm border border-[var(--border-color)]">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6 gap-4">
                   <h2 className="text-base sm:text-lg font-semibold text-[var(--text-color)]">Produtos</h2>
-                  <button
-                    type="button"
-                    onClick={addProduct}
-                    className="inline-flex items-center space-x-2 bg-[var(--primary-bg)] text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-[var(--primary-hover)] transition-colors text-sm"
-                  >
-                    <PlusIcon className="h-4 w-4" />
-                    <span>Adicionar Produto</span>
-                  </button>
                 </div>
 
                 <DragDropContext onDragEnd={onDragEndProducts}>
@@ -1226,6 +1254,20 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
 
                                   <div>
                                     <label className="block text-xs sm:text-sm font-medium text-[var(--text-color)] mb-1">
+                                      Desconto (%)
+                                    </label>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max="100"
+                                      value={product.discount || 0}
+                                      onChange={(e) => updateProduct(index, { discount: parseFloat(e.target.value) || 0 })}
+                                      className="w-full px-3 py-2 border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-bg)]"
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <label className="block text-xs sm:text-sm font-medium text-[var(--text-color)] mb-1">
                                       URL da Imagem (opcional)
                                     </label>
                                     <input
@@ -1246,6 +1288,21 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                                       </div>
                                     )}
                                   </div>
+
+                                  {product.type === 'digital' && (
+                                    <div>
+                                      <label className="block text-xs sm:text-sm font-medium text-[var(--text-color)] mb-1">
+                                        URL do Arquivo Digital (opcional)
+                                      </label>
+                                      <input
+                                        type="url"
+                                        value={product.digital_file_url || ''}
+                                        onChange={(e) => updateProduct(index, { digital_file_url: e.target.value })}
+                                        className="w-full px-3 py-2 border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-bg)]"
+                                        placeholder="https://example.com/file.pdf"
+                                      />
+                                    </div>
+                                  )}
                                 </div>
 
                                 <div className="mt-3 sm:mt-4">
@@ -1260,21 +1317,6 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                                     placeholder="Descrição do produto..."
                                   />
                                 </div>
-
-                                {product.type === 'digital' && (
-                                  <div className="mt-3 sm:mt-4">
-                                    <label className="block text-xs sm:text-sm font-medium text-[var(--text-color)] mb-1">
-                                      URL do Arquivo Digital (opcional)
-                                    </label>
-                                    <input
-                                      type="url"
-                                      value={product.digital_file_url || ''}
-                                      onChange={(e) => updateProduct(index, { digital_file_url: e.target.value })}
-                                      className="w-full px-3 py-2 border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-bg)]"
-                                      placeholder="https://example.com/file.pdf"
-                                    />
-                                  </div>
-                                )}
 
                                 <div className="mt-3 sm:mt-4">
                                   <label className="flex items-center">
@@ -1297,10 +1339,27 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
                   </Droppable>
                 </DragDropContext>
 
+                <div className="mt-6">
+                  <h3 className="text-sm font-medium mb-2">Adicionar Produtos Existentes</h3>
+                  <div className="space-y-2">
+                    {globalProducts.map((gp) => (
+                      <div key={gp.id} className="flex items-center justify-between p-2 border rounded">
+                        <span>{gp.name}</span>
+                        <button
+                          onClick={() => addFromGlobal(gp)}
+                          className="text-indigo-600 hover:text-indigo-700"
+                        >
+                          Adicionar
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 {products.length === 0 && (
                   <div className="text-center py-6 sm:py-8 text-[var(--text-secondary)]">
                     <p className="text-sm sm:text-base">Nenhum produto adicionado ainda.</p>
-                    <p className="text-xs sm:text-sm">Clique em "Adicionar Produto" para começar a vender.</p>
+                    <p className="text-xs sm:text-sm">Adicione produtos existentes acima.</p>
                   </div>
                 )}
               </div>
@@ -1308,509 +1367,509 @@ const toolboxItems: LayoutElement[] = React.useMemo(() => [
 
             {/* Preview Tab */}
             {activeTab === 'preview' && (
-  <div className="bg-[var(--sidebar-bg)] rounded-xl p-4 sm:p-6 shadow-sm border border-[var(--border-color)]">
-    <h2 className="text-base sm:text-lg font-semibold text-[var(--text-color)] mb-4 sm:mb-6">Visualização</h2>
-    <DragDropContext onDragEnd={onDragEnd}>
-      <div className="flex flex-col lg:flex-row gap-6">
-        {/* Toolbox */}
-        <div className="w-full lg:w-1/4 bg-[var(--active-bg)] p-4 rounded-lg">
-          <h3 className="text-sm font-medium text-[var(--text-color)] mb-4">
-            Elementos
-          </h3>
-          <Droppable droppableId="toolbox" isDropDisabled={true}>
-            {(provided, snapshot) => (
-              <div
-                {...provided.droppableProps}
-                ref={provided.innerRef}
-                className={`space-y-2 min-h-[200px] ${snapshot.isDraggingOver ? 'bg-[var(--border-color)]' : ''}`}
-              >
-                {toolboxItems.length === 0 && (
-                  <p className="text-sm text-[var(--text-secondary)]">Nenhum elemento disponível.</p>
-                )}
-                {toolboxItems.map((item, index) => (
-                  <Draggable key={item.id} draggableId={item.id} index={index}>
-                    {(provided, snapshot) => (
-                      <div
-                        ref={provided.innerRef}
-                        {...provided.draggableProps}
-                        {...provided.dragHandleProps}
-                        className={`p-3 bg-[var(--sidebar-bg)] border border-[var(--border-color)] rounded-lg flex items-center space-x-2 cursor-move ${
-                          snapshot.isDragging ? 'bg-[var(--active-bg)] shadow-lg' : 'hover:bg-[var(--border-color)]'
-                        }`}
-                      >
-                        <Bars3Icon className="h-5 w-5 text-[var(--text-secondary)]" />
-                        <span className="text-sm text-[var(--text-color)]">
-                          {item.type === 'title' ? 'Título'
-                            : item.type === 'description' ? 'Descrição'
-                            : item.type === 'logo' ? 'Logo'
-                            : item.type === 'text_field' ? 'Campo de Texto'
-                            : item.type === 'button' ? 'Botão'
-                            : item.type === 'image' ? 'Imagem'
-                            : item.type === 'spacer' ? 'Espaçador'
-                            : item.type === 'divider' ? 'Divisor'
-                            : item.type === 'product_list' ? 'Lista de Produtos'
-                            : 'Formulário de Cliente'}
-                        </span>
-                      </div>
-                    )}
-                  </Draggable>
-                ))}
-                {provided.placeholder}
-              </div>
-            )}
-          </Droppable>
-        </div>
-
-        {/* Preview Area */}
-        <div className="flex-1 border rounded-lg overflow-hidden preview-area" style={{ border: '1px solid #d1d5db' }}>
-  <div style={{ backgroundColor: '#f9fafb', padding: '0.5rem 1rem', fontSize: '0.875rem', color: '#6b7280' }}>
-    Visualização: {window.location.origin}/checkout/{watch('slug') || 'sua-url'}
-  </div>
-  <Droppable droppableId="layout">
-    {(provided, snapshot) => (
-      <div
-        {...provided.droppableProps}
-        ref={provided.innerRef}
-        className="p-4 sm:p-8 min-h-[400px]"
-        style={{
-          borderWidth: '2px',
-          borderColor: snapshot.isDraggingOver ? '#3B82F6' : '#d1d5db',
-          backgroundColor: snapshot.isDraggingOver ? '#f9fafb' : theme.background_color,
-          fontFamily: theme.font_family,
-          color: theme.text_color,
-        }}
-      >
-                <div className="max-w-md mx-auto space-y-4">
-                  {layout.length === 0 && (
-                    <div style={{ textAlign: 'center', color: '#6b7280', paddingTop: '2rem', paddingBottom: '2rem' }}>
-                      <p style={{ fontSize: '0.875rem' }}>Arraste elementos da barra lateral para construir sua página.</p>
-                    </div>
-                  )}
-                  {layout.map((element, index) => (
-                    <Draggable key={element.id} draggableId={element.id} index={index}>
-                      {(provided, snapshot) => (
-                        <div
-                          ref={provided.innerRef}
-                          {...provided.draggableProps}
-                          className="relative group"
-                          style={{
-                            padding: '1rem',
-                            border: '1px solid #d1d5db',
-                            borderRadius: '0.5rem',
-                            backgroundColor: snapshot.isDragging ? '#f9fafb' : '#ffffff',
-                            boxShadow: snapshot.isDragging ? '0 10px 15px -3px rgba(0, 0, 0, 0.1)' : 'none',
-                          }}
-                        >
+              <div className="bg-[var(--sidebar-bg)] rounded-xl p-4 sm:p-6 shadow-sm border border-[var(--border-color)]">
+                <h2 className="text-base sm:text-lg font-semibold text-[var(--text-color)] mb-4 sm:mb-6">Visualização</h2>
+                <DragDropContext onDragEnd={onDragEnd}>
+                  <div className="flex flex-col lg:flex-row gap-6">
+                    {/* Toolbox */}
+                    <div className="w-full lg:w-1/4 bg-[var(--active-bg)] p-4 rounded-lg">
+                      <h3 className="text-sm font-medium text-[var(--text-color)] mb-4">
+                        Elementos
+                      </h3>
+                      <Droppable droppableId="toolbox" isDropDisabled={true}>
+                        {(provided, snapshot) => (
                           <div
-                            {...provided.dragHandleProps}
-                            className="absolute top-2 left-2 cursor-move"
+                            {...provided.droppableProps}
+                            ref={provided.innerRef}
+                            className={`space-y-2 min-h-[200px] ${snapshot.isDraggingOver ? 'bg-[var(--border-color)]' : ''}`}
                           >
-                            <Bars3Icon className="h-5 w-5" style={{ color: '#6b7280' }} />
+                            {toolboxItems.length === 0 && (
+                              <p className="text-sm text-[var(--text-secondary)]">Nenhum elemento disponível.</p>
+                            )}
+                            {toolboxItems.map((item, index) => (
+                              <Draggable key={item.id} draggableId={item.id} index={index}>
+                                {(provided, snapshot) => (
+                                  <div
+                                    ref={provided.innerRef}
+                                    {...provided.draggableProps}
+                                    {...provided.dragHandleProps}
+                                    className={`p-3 bg-[var(--sidebar-bg)] border border-[var(--border-color)] rounded-lg flex items-center space-x-2 cursor-move ${
+                                      snapshot.isDragging ? 'bg-[var(--active-bg)] shadow-lg' : 'hover:bg-[var(--border-color)]'
+                                    }`}
+                                  >
+                                    <Bars3Icon className="h-5 w-5 text-[var(--text-secondary)]" />
+                                    <span className="text-sm text-[var(--text-color)]">
+                                      {item.type === 'title' ? 'Título'
+                                        : item.type === 'description' ? 'Descrição'
+                                        : item.type === 'logo' ? 'Logo'
+                                        : item.type === 'text_field' ? 'Campo de Texto'
+                                        : item.type === 'button' ? 'Botão'
+                                        : item.type === 'image' ? 'Imagem'
+                                        : item.type === 'spacer' ? 'Espaçador'
+                                        : item.type === 'divider' ? 'Divisor'
+                                        : item.type === 'product_list' ? 'Lista de Produtos'
+                                        : 'Formulário de Cliente'}
+                                    </span>
+                                  </div>
+                                )}
+                              </Draggable>
+                            ))}
+                            {provided.placeholder}
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => removeLayoutElement(index)}
-                            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 text-red-600 hover:text-red-700 transition-opacity"
+                        )}
+                      </Droppable>
+                    </div>
+
+                    {/* Preview Area */}
+                    <div className="flex-1 border rounded-lg overflow-hidden preview-area" style={{ border: '1px solid #d1d5db' }}>
+                      <div style={{ backgroundColor: '#f9fafb', padding: '0.5rem 1rem', fontSize: '0.875rem', color: '#6b7280' }}>
+                        Visualização: {window.location.origin}/checkout/{watch('slug') || 'sua-url'}
+                      </div>
+                      <Droppable droppableId="layout">
+                        {(provided, snapshot) => (
+                          <div
+                            {...provided.droppableProps}
+                            ref={provided.innerRef}
+                            className="p-4 sm:p-8 min-h-[400px]"
+                            style={{
+                              borderWidth: '2px',
+                              borderColor: snapshot.isDraggingOver ? '#3B82F6' : '#d1d5db',
+                              backgroundColor: snapshot.isDraggingOver ? '#f9fafb' : theme.background_color,
+                              fontFamily: theme.font_family,
+                              color: theme.text_color,
+                            }}
                           >
-                            <TrashIcon className="h-4 w-4" />
-                          </button>
-                          {element.type === 'title' && (
-                            <div>
-                              <input
-                                type="text"
-                                value={element.content.text || watchedTitle}
-                                onChange={(e) => updateLayoutElement(index, { ...element.content, text: e.target.value })}
-                                className="w-full"
-                                style={{
-                                  fontSize: element.content.style?.fontSize,
-                                  fontWeight: element.content.style?.fontWeight,
-                                  textAlign: element.content.style?.align,
-                                  marginBottom: '0.5rem',
-                                }}
-                              />
-                              <div className="flex space-x-2">
-                                <select
-                                  value={element.content.style?.fontSize}
-                                  onChange={(e) =>
-                                    updateLayoutElement(index, {
-                                      ...element.content,
-                                      style: { ...element.content.style, fontSize: e.target.value },
-                                    })
-                                  }
-                                  style={{ padding: '0.25rem 0.5rem', border: '1px solid #d1d5db', borderRadius: '0.5rem' }}
-                                >
-                                  <option value="16px">16px</option>
-                                  <option value="20px">20px</option>
-                                  <option value="24px">24px</option>
-                                  <option value="32px">32px</option>
-                                </select>
-                                <select
-                                  value={element.content.style?.align}
-                                  onChange={(e) =>
-                                    updateLayoutElement(index, {
-                                      ...element.content,
-                                      style: { ...element.content.style, align: e.target.value as any },
-                                    })
-                                  }
-                                  style={{ padding: '0.25rem 0.5rem', border: '1px solid #d1d5db', borderRadius: '0.5rem' }}
-                                >
-                                  <option value="left">Esquerda</option>
-                                  <option value="center">Centro</option>
-                                  <option value="right">Direita</option>
-                                </select>
-                              </div>
-                            </div>
-                          )}
-                          {element.type === 'description' && (
-                            <div>
-                              <textarea
-                                value={element.content.text || watchedDescription}
-                                onChange={(e) => updateLayoutElement(index, { ...element.content, text: e.target.value })}
-                                className="w-full resize-none"
-                                rows={3}
-                                style={{
-                                  fontSize: element.content.style?.fontSize,
-                                  textAlign: element.content.style?.align,
-                                  marginBottom: '0.5rem',
-                                }}
-                              />
-                              <div className="flex space-x-2">
-                                <select
-                                  value={element.content.style?.fontSize}
-                                  onChange={(e) =>
-                                    updateLayoutElement(index, {
-                                      ...element.content,
-                                      style: { ...element.content.style, fontSize: e.target.value },
-                                    })
-                                  }
-                                  style={{ padding: '0.25rem 0.5rem', border: '1px solid #d1d5db', borderRadius: '0.5rem' }}
-                                >
-                                  <option value="12px">12px</option>
-                                  <option value="14px">14px</option>
-                                  <option value="16px">16px</option>
-                                  <option value="18px">18px</option>
-                                </select>
-                                <select
-                                  value={element.content.style?.align}
-                                  onChange={(e) =>
-                                    updateLayoutElement(index, {
-                                      ...element.content,
-                                      style: { ...element.content.style, align: e.target.value as any },
-                                    })
-                                  }
-                                  style={{ padding: '0.25rem 0.5rem', border: '1px solid #d1d5db', borderRadius: '0.5rem' }}
-                                >
-                                  <option value="left">Esquerda</option>
-                                  <option value="center">Centro</option>
-                                  <option value="right">Direita</option>
-                                </select>
-                              </div>
-                            </div>
-                          )}
-                          {element.type === 'logo' && (
-                            <div style={{ textAlign: 'center' }}>
-                              <input
-                                type="url"
-                                value={element.content.url || watchedLogoUrl}
-                                onChange={(e) => updateLayoutElement(index, { ...element.content, url: e.target.value })}
-                                style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #d1d5db', borderRadius: '0.5rem', marginBottom: '0.5rem' }}
-                                placeholder="https://example.com/logo.png"
-                              />
-                              {element.content.url && isValidUrl(element.content.url) && (
-                                <img
-                                  src={element.content.url}
-                                  alt="Logo"
-                                  style={{ height: '3rem', margin: '0 auto' }}
-                                  onError={() => toast.error('URL do logo inválida')}
-                                />
+                            <div className="max-w-md mx-auto space-y-4">
+                              {layout.length === 0 && (
+                                <div style={{ textAlign: 'center', color: '#6b7280', paddingTop: '2rem', paddingBottom: '2rem' }}>
+                                  <p style={{ fontSize: '0.875rem' }}>Arraste elementos da barra lateral para construir sua página.</p>
+                                </div>
                               )}
-                            </div>
-                          )}
-                          {element.type === 'text_field' && (
-                            <div>
-                              <input
-                                type="text"
-                                placeholder={element.content.placeholder}
-                                style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #d1d5db', borderRadius: theme.border_radius, marginBottom: '0.5rem' }}
-                                onChange={(e) => {
-                                  updateLayoutElement(index, { ...element.content, placeholder: e.target.value });
-                                  if (element.content.fieldId) {
-                                    const fieldIndex = customFields.findIndex((f) => f.id === element.content.fieldId);
-                                    if (fieldIndex !== -1) {
-                                      updateCustomField(fieldIndex, { placeholder: e.target.value, label: e.target.value });
-                                    }
-                                  }
-                                }}
-                              />
-                              <select
-                                value={customFields.find((f) => f.id === element.content.fieldId)?.type || 'text'}
-                                onChange={(e) => {
-                                  if (element.content.fieldId) {
-                                    const fieldIndex = customFields.findIndex((f) => f.id === element.content.fieldId);
-                                    if (fieldIndex !== -1) {
-                                      updateCustomField(fieldIndex, { type: e.target.value as any });
-                                    }
-                                  }
-                                }}
-                                style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #d1d5db', borderRadius: theme.border_radius, marginBottom: '0.5rem' }}
-                              >
-                                <option value="text">Texto</option>
-                                <option value="email">Email</option>
-                                <option value="phone">Telefone</option>
-                                <option value="select">Seleção</option>
-                                <option value="textarea">Área de Texto</option>
-                                <option value="checkbox">Caixa de Seleção</option>
-                              </select>
-                              <label className="flex items-center">
-                                <input
-                                  type="checkbox"
-                                  checked={element.content.required}
-                                  onChange={(e) => {
-                                    updateLayoutElement(index, { ...element.content, required: e.target.checked });
-                                    if (element.content.fieldId) {
-                                      const fieldIndex = customFields.findIndex((f) => f.id === element.content.fieldId);
-                                      if (fieldIndex !== -1) {
-                                        updateCustomField(fieldIndex, { required: e.target.checked });
-                                      }
-                                    }
-                                  }}
-                                  className="rounded"
-                                  style={{ borderColor: '#d1d5db' }}
-                                />
-                                <span className="ml-2 text-xs sm:text-sm" style={{ color: '#374151' }}>Obrigatório</span>
-                              </label>
-                            </div>
-                          )}
-                          {element.type === 'button' && (
-                            <div>
-                              <button
-                                type="button"
-                                style={{
-                                  width: '100%',
-                                  padding: '0.5rem 1rem',
-                                  color: 'white',
-                                  fontWeight: '500',
-                                  backgroundColor: theme.primary_color,
-                                  borderRadius:
-                                    theme.button_style === 'pill' ? '9999px'
-                                      : theme.button_style === 'square' ? '0'
-                                      : theme.border_radius,
-                                  textAlign: element.content.style?.align,
-                                }}
-                              >
-                                <input
-                                  type="text"
-                                  value={element.content.text}
-                                  onChange={(e) => updateLayoutElement(index, { ...element.content, text: e.target.value })}
-                                  style={{ width: '100%', background: 'transparent', color: 'white', textAlign: 'center' }}
-                                />
-                              </button>
-                            </div>
-                          )}
-                          {element.type === 'image' && (
-                            <div style={{ textAlign: 'center' }}>
-                              <input
-                                type="url"
-                                value={element.content.url}
-                                onChange={(e) => updateLayoutElement(index, { ...element.content, url: e.target.value })}
-                                style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #d1d5db', borderRadius: '0.5rem', marginBottom: '0.5rem' }}
-                                placeholder="https://example.com/image.jpg"
-                              />
-                              {element.content.url && isValidUrl(element.content.url) && (
-                                <img
-                                  src={element.content.url}
-                                  alt="Custom Image"
-                                  style={{ height: '6rem', margin: '0 auto' }}
-                                  onError={() => toast.error('URL da imagem inválida')}
-                                />
-                              )}
-                            </div>
-                          )}
-                          {element.type === 'spacer' && (
-                            <div
-                              style={{
-                                height: element.content.style?.height,
-                                textAlign: element.content.style?.align,
-                              }}
-                            >
-                              <input
-                                type="text"
-                                value={element.content.style?.height}
-                                onChange={(e) =>
-                                  updateLayoutElement(index, {
-                                    ...element.content,
-                                    style: { ...element.content.style, height: e.target.value },
-                                  })
-                                }
-                                style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #d1d5db', borderRadius: '0.5rem' }}
-                                placeholder="Altura (ex: 20px)"
-                              />
-                            </div>
-                          )}
-                          {element.type === 'divider' && (
-                            <div>
-                              <hr style={{ borderColor: element.content.style?.color }} />
-                              <input
-                                type="color"
-                                value={element.content.style?.color}
-                                onChange={(e) =>
-                                  updateLayoutElement(index, {
-                                    ...element.content,
-                                    style: { ...element.content.style, color: e.target.value },
-                                  })
-                                }
-                                style={{ width: '100%', height: '2rem', border: '1px solid #d1d5db', borderRadius: '0.5rem', marginTop: '0.5rem' }}
-                              />
-                            </div>
-                          )}
-                          {element.type === 'product_list' && (
-                            <div>
-                              <h2 style={{ fontSize: '1rem', fontWeight: '600', marginBottom: '0.75rem' }}>Produtos</h2>
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                {products
-                                  .filter((product) => product.is_active)
-                                  .sort((a, b) => a.order - b.order)
-                                  .map((product) => (
-                                    <div key={product.id} style={{ border: '1px solid #d1d5db', borderRadius: '0.5rem', padding: '0.75rem' }}>
-                                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between">
-                                        <div className="flex items-start space-x-3">
-                                          {product.image_url && isValidUrl(product.image_url) && (
-                                            <img
-                                              src={product.image_url}
-                                              alt={product.name}
-                                              className="h-10 w-10 object-cover rounded"
-                                              onError={() => toast.error(`URL da imagem inválida para ${product.name}`)}
-                                            />
-                                          )}
-                                          <div>
-                                            <h3 style={{ fontWeight: '500', fontSize: '0.875rem' }}>{product.name || 'Produto sem nome'}</h3>
-                                            <p style={{ fontSize: '0.75rem', color: '#4b5563' }}>{product.description}</p>
+                              {layout.map((element, index) => (
+                                <Draggable key={element.id} draggableId={element.id} index={index}>
+                                  {(provided, snapshot) => (
+                                    <div
+                                      ref={provided.innerRef}
+                                      {...provided.draggableProps}
+                                      className="relative group"
+                                      style={{
+                                        padding: '1rem',
+                                        border: '1px solid #d1d5db',
+                                        borderRadius: '0.5rem',
+                                        backgroundColor: snapshot.isDragging ? '#f9fafb' : '#ffffff',
+                                        boxShadow: snapshot.isDragging ? '0 10px 15px -3px rgba(0, 0, 0, 0.1)' : 'none',
+                                      }}
+                                    >
+                                      <div
+                                        {...provided.dragHandleProps}
+                                        className="absolute top-2 left-2 cursor-move"
+                                      >
+                                        <Bars3Icon className="h-5 w-5" style={{ color: '#6b7280' }} />
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => removeLayoutElement(index)}
+                                        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 text-red-600 hover:text-red-700 transition-opacity"
+                                      >
+                                        <TrashIcon className="h-4 w-4" />
+                                      </button>
+                                      {element.type === 'title' && (
+                                        <div>
+                                          <input
+                                            type="text"
+                                            value={element.content.text || watchedTitle}
+                                            onChange={(e) => updateLayoutElement(index, { ...element.content, text: e.target.value })}
+                                            className="w-full"
+                                            style={{
+                                              fontSize: element.content.style?.fontSize,
+                                              fontWeight: element.content.style?.fontWeight,
+                                              textAlign: element.content.style?.align,
+                                              marginBottom: '0.5rem',
+                                            }}
+                                          />
+                                          <div className="flex space-x-2">
+                                            <select
+                                              value={element.content.style?.fontSize}
+                                              onChange={(e) =>
+                                                updateLayoutElement(index, {
+                                                  ...element.content,
+                                                  style: { ...element.content.style, fontSize: e.target.value },
+                                                })
+                                              }
+                                              style={{ padding: '0.25rem 0.5rem', border: '1px solid #d1d5db', borderRadius: '0.5rem' }}
+                                            >
+                                              <option value="16px">16px</option>
+                                              <option value="20px">20px</option>
+                                              <option value="24px">24px</option>
+                                              <option value="32px">32px</option>
+                                            </select>
+                                            <select
+                                              value={element.content.style?.align}
+                                              onChange={(e) =>
+                                                updateLayoutElement(index, {
+                                                  ...element.content,
+                                                  style: { ...element.content.style, align: e.target.value as any },
+                                                })
+                                              }
+                                              style={{ padding: '0.25rem 0.5rem', border: '1px solid #d1d5db', borderRadius: '0.5rem' }}
+                                            >
+                                              <option value="left">Esquerda</option>
+                                              <option value="center">Centro</option>
+                                              <option value="right">Direita</option>
+                                            </select>
                                           </div>
                                         </div>
-                                        <span className="mt-2 sm:mt-0" style={{ fontWeight: '700', fontSize: '0.875rem' }}>
-                                          R${product.price.toFixed(2)}
-                                        </span>
-                                      </div>
+                                      )}
+                                      {element.type === 'description' && (
+                                        <div>
+                                          <textarea
+                                            value={element.content.text || watchedDescription}
+                                            onChange={(e) => updateLayoutElement(index, { ...element.content, text: e.target.value })}
+                                            className="w-full resize-none"
+                                            rows={3}
+                                            style={{
+                                              fontSize: element.content.style?.fontSize,
+                                              textAlign: element.content.style?.align,
+                                              marginBottom: '0.5rem',
+                                            }}
+                                          />
+                                          <div className="flex space-x-2">
+                                            <select
+                                              value={element.content.style?.fontSize}
+                                              onChange={(e) =>
+                                                updateLayoutElement(index, {
+                                                  ...element.content,
+                                                  style: { ...element.content.style, fontSize: e.target.value },
+                                                })
+                                              }
+                                              style={{ padding: '0.25rem 0.5rem', border: '1px solid #d1d5db', borderRadius: '0.5rem' }}
+                                            >
+                                              <option value="12px">12px</option>
+                                              <option value="14px">14px</option>
+                                              <option value="16px">16px</option>
+                                              <option value="18px">18px</option>
+                                            </select>
+                                            <select
+                                              value={element.content.style?.align}
+                                              onChange={(e) =>
+                                                updateLayoutElement(index, {
+                                                  ...element.content,
+                                                  style: { ...element.content.style, align: e.target.value as any },
+                                                })
+                                              }
+                                              style={{ padding: '0.25rem 0.5rem', border: '1px solid #d1d5db', borderRadius: '0.5rem' }}
+                                            >
+                                              <option value="left">Esquerda</option>
+                                              <option value="center">Centro</option>
+                                              <option value="right">Direita</option>
+                                            </select>
+                                          </div>
+                                        </div>
+                                      )}
+                                      {element.type === 'logo' && (
+                                        <div style={{ textAlign: 'center' }}>
+                                          <input
+                                            type="url"
+                                            value={element.content.url || watchedLogoUrl}
+                                            onChange={(e) => updateLayoutElement(index, { ...element.content, url: e.target.value })}
+                                            style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #d1d5db', borderRadius: '0.5rem', marginBottom: '0.5rem' }}
+                                            placeholder="https://example.com/logo.png"
+                                          />
+                                          {element.content.url && isValidUrl(element.content.url) && (
+                                            <img
+                                              src={element.content.url}
+                                              alt="Logo"
+                                              style={{ height: '3rem', margin: '0 auto' }}
+                                              onError={() => toast.error('URL do logo inválida')}
+                                            />
+                                          )}
+                                        </div>
+                                      )}
+                                      {element.type === 'text_field' && (
+                                        <div>
+                                          <input
+                                            type="text"
+                                            placeholder={element.content.placeholder}
+                                            style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #d1d5db', borderRadius: theme.border_radius, marginBottom: '0.5rem' }}
+                                            onChange={(e) => {
+                                              updateLayoutElement(index, { ...element.content, placeholder: e.target.value });
+                                              if (element.content.fieldId) {
+                                                const fieldIndex = customFields.findIndex((f) => f.id === element.content.fieldId);
+                                                if (fieldIndex !== -1) {
+                                                  updateCustomField(fieldIndex, { placeholder: e.target.value, label: e.target.value });
+                                                }
+                                              }
+                                            }}
+                                          />
+                                          <select
+                                            value={customFields.find((f) => f.id === element.content.fieldId)?.type || 'text'}
+                                            onChange={(e) => {
+                                              if (element.content.fieldId) {
+                                                const fieldIndex = customFields.findIndex((f) => f.id === element.content.fieldId);
+                                                if (fieldIndex !== -1) {
+                                                  updateCustomField(fieldIndex, { type: e.target.value as any });
+                                                }
+                                              }
+                                            }}
+                                            style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #d1d5db', borderRadius: theme.border_radius, marginBottom: '0.5rem' }}
+                                          >
+                                            <option value="text">Texto</option>
+                                            <option value="email">Email</option>
+                                            <option value="phone">Telefone</option>
+                                            <option value="select">Seleção</option>
+                                            <option value="textarea">Área de Texto</option>
+                                            <option value="checkbox">Caixa de Seleção</option>
+                                          </select>
+                                          <label className="flex items-center">
+                                            <input
+                                              type="checkbox"
+                                              checked={element.content.required}
+                                              onChange={(e) => {
+                                                updateLayoutElement(index, { ...element.content, required: e.target.checked });
+                                                if (element.content.fieldId) {
+                                                  const fieldIndex = customFields.findIndex((f) => f.id === element.content.fieldId);
+                                                  if (fieldIndex !== -1) {
+                                                    updateCustomField(fieldIndex, { required: e.target.checked });
+                                                  }
+                                                }
+                                              }}
+                                              className="rounded"
+                                              style={{ borderColor: '#d1d5db' }}
+                                            />
+                                            <span className="ml-2 text-xs sm:text-sm" style={{ color: '#374151' }}>Obrigatório</span>
+                                          </label>
+                                        </div>
+                                      )}
+                                      {element.type === 'button' && (
+                                        <div>
+                                          <button
+                                            type="button"
+                                            style={{
+                                              width: '100%',
+                                              padding: '0.5rem 1rem',
+                                              color: 'white',
+                                              fontWeight: '500',
+                                              backgroundColor: theme.primary_color,
+                                              borderRadius:
+                                                theme.button_style === 'pill' ? '9999px'
+                                                  : theme.button_style === 'square' ? '0'
+                                                  : theme.border_radius,
+                                              textAlign: element.content.style?.align,
+                                            }}
+                                          >
+                                            <input
+                                              type="text"
+                                              value={element.content.text}
+                                              onChange={(e) => updateLayoutElement(index, { ...element.content, text: e.target.value })}
+                                              style={{ width: '100%', background: 'transparent', color: 'white', textAlign: 'center' }}
+                                            />
+                                          </button>
+                                        </div>
+                                      )}
+                                      {element.type === 'image' && (
+                                        <div style={{ textAlign: 'center' }}>
+                                          <input
+                                            type="url"
+                                            value={element.content.url}
+                                            onChange={(e) => updateLayoutElement(index, { ...element.content, url: e.target.value })}
+                                            style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #d1d5db', borderRadius: '0.5rem', marginBottom: '0.5rem' }}
+                                            placeholder="https://example.com/image.jpg"
+                                          />
+                                          {element.content.url && isValidUrl(element.content.url) && (
+                                            <img
+                                              src={element.content.url}
+                                              alt="Custom Image"
+                                              style={{ height: '6rem', margin: '0 auto' }}
+                                              onError={() => toast.error('URL da imagem inválida')}
+                                            />
+                                          )}
+                                        </div>
+                                      )}
+                                      {element.type === 'spacer' && (
+                                        <div
+                                          style={{
+                                            height: element.content.style?.height,
+                                            textAlign: element.content.style?.align,
+                                          }}
+                                        >
+                                          <input
+                                            type="text"
+                                            value={element.content.style?.height}
+                                            onChange={(e) =>
+                                              updateLayoutElement(index, {
+                                                ...element.content,
+                                                style: { ...element.content.style, height: e.target.value },
+                                              })
+                                            }
+                                            style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #d1d5db', borderRadius: '0.5rem' }}
+                                            placeholder="Altura (ex: 20px)"
+                                          />
+                                        </div>
+                                      )}
+                                      {element.type === 'divider' && (
+                                        <div>
+                                          <hr style={{ borderColor: element.content.style?.color }} />
+                                          <input
+                                            type="color"
+                                            value={element.content.style?.color}
+                                            onChange={(e) =>
+                                              updateLayoutElement(index, {
+                                                ...element.content,
+                                                style: { ...element.content.style, color: e.target.value },
+                                              })
+                                            }
+                                            style={{ width: '100%', height: '2rem', border: '1px solid #d1d5db', borderRadius: '0.5rem', marginTop: '0.5rem' }}
+                                          />
+                                        </div>
+                                      )}
+                                      {element.type === 'product_list' && (
+                                        <div>
+                                          <h2 style={{ fontSize: '1rem', fontWeight: '600', marginBottom: '0.75rem' }}>Produtos</h2>
+                                          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                            {products
+                                              .filter((product) => product.is_active)
+                                              .sort((a, b) => a.order - b.order)
+                                              .map((product) => (
+                                                <div key={product.id} style={{ border: '1px solid #d1d5db', borderRadius: '0.5rem', padding: '0.75rem' }}>
+                                                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between">
+                                                    <div className="flex items-start space-x-3">
+                                                      {product.image_url && isValidUrl(product.image_url) && (
+                                                        <img
+                                                          src={product.image_url}
+                                                          alt={product.name}
+                                                          className="h-10 w-10 object-cover rounded"
+                                                          onError={() => toast.error(`URL da imagem inválida para ${product.name}`)}
+                                                        />
+                                                      )}
+                                                      <div>
+                                                        <h3 style={{ fontWeight: '500', fontSize: '0.875rem' }}>{product.name || 'Produto sem nome'}</h3>
+                                                        <p style={{ fontSize: '0.75rem', color: '#4b5563' }}>{product.description}</p>
+                                                      </div>
+                                                    </div>
+                                                    <span className="mt-2 sm:mt-0" style={{ fontWeight: '700', fontSize: '0.875rem' }}>
+                                                      R${product.price.toFixed(2)}
+                                                    </span>
+                                                  </div>
+                                                </div>
+                                              ))}
+                                          </div>
+                                        </div>
+                                      )}
+                                      {element.type === 'customer_info_form' && (
+                                        <div className="space-y-4">
+                                          <h2 style={{ fontSize: '1rem', fontWeight: '600' }}>Informações do Cliente</h2>
+                                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <input
+                                              type="text"
+                                              placeholder="Nome Completo"
+                                              className="px-3 py-2 rounded-lg"
+                                              style={{ border: '1px solid #d1d5db', borderRadius: theme.border_radius }}
+                                            />
+                                            <input
+                                              type="email"
+                                              placeholder="Endereço de Email"
+                                              className="px-3 py-2 rounded-lg"
+                                              style={{ border: '1px solid #d1d5db', borderRadius: theme.border_radius }}
+                                            />
+                                            <input
+                                              type="tel"
+                                              placeholder="Número de Telefone"
+                                              className="px-3 py-2 rounded-lg"
+                                              style={{ border: '1px solid #d1d5db', borderRadius: theme.border_radius }}
+                                            />
+                                            <input
+                                              type="text"
+                                              placeholder="CPF"
+                                              className="px-3 py-2 rounded-lg"
+                                              style={{ border: '1px solid #d1d5db', borderRadius: theme.border_radius }}
+                                            />
+                                          </div>
+                                          {customFields
+                                            .sort((a, b) => a.order - b.order)
+                                            .map((field) => (
+                                              <div key={field.id}>
+                                                {field.type === 'textarea' ? (
+                                                  <textarea
+                                                    placeholder={field.placeholder || field.label}
+                                                    className="w-full px-3 py-2 rounded-lg"
+                                                    style={{ border: '1px solid #d1d5db', borderRadius: theme.border_radius }}
+                                                    rows={3}
+                                                  />
+                                                ) : field.type === 'select' ? (
+                                                  <select
+                                                    className="w-full px-3 py-2 rounded-lg"
+                                                    style={{ border: '1px solid #d1d5db', borderRadius: theme.border_radius }}
+                                                  >
+                                                    <option value="">{field.placeholder || field.label}</option>
+                                                    {field.options?.map((option, idx) => (
+                                                      <option key={idx} value={option}>
+                                                        {option}
+                                                      </option>
+                                                    ))}
+                                                  </select>
+                                                ) : field.type === 'checkbox' ? (
+                                                  <label className="flex items-center">
+                                                    <input
+                                                      type="checkbox"
+                                                      className="rounded"
+                                                      style={{ borderColor: '#d1d5db' }}
+                                                    />
+                                                    <span className="ml-2 text-xs sm:text-sm" style={{ color: '#374151' }}>{field.label}</span>
+                                                  </label>
+                                                ) : (
+                                                  <input
+                                                    type={field.type}
+                                                    placeholder={field.placeholder || field.label}
+                                                    className="w-full px-3 py-2 rounded-lg"
+                                                    style={{ border: '1px solid #d1d5db', borderRadius: theme.border_radius }}
+                                                  />
+                                                )}
+                                              </div>
+                                            ))}
+                                        </div>
+                                      )}
                                     </div>
-                                  ))}
-                              </div>
+                                  )}
+                                </Draggable>
+                              ))}
+                              {provided.placeholder}
                             </div>
-                          )}
-                          {element.type === 'customer_info_form' && (
-                            <div className="space-y-4">
-                              <h2 style={{ fontSize: '1rem', fontWeight: '600' }}>Informações do Cliente</h2>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <input
-                                  type="text"
-                                  placeholder="Nome Completo"
-                                  className="px-3 py-2 rounded-lg"
-                                  style={{ border: '1px solid #d1d5db', borderRadius: theme.border_radius }}
-                                />
-                                <input
-                                  type="email"
-                                  placeholder="Endereço de Email"
-                                  className="px-3 py-2 rounded-lg"
-                                  style={{ border: '1px solid #d1d5db', borderRadius: theme.border_radius }}
-                                />
-                                <input
-                                  type="tel"
-                                  placeholder="Número de Telefone"
-                                  className="px-3 py-2 rounded-lg"
-                                  style={{ border: '1px solid #d1d5db', borderRadius: theme.border_radius }}
-                                />
-                                <input
-                                  type="text"
-                                  placeholder="CPF"
-                                  className="px-3 py-2 rounded-lg"
-                                  style={{ border: '1px solid #d1d5db', borderRadius: theme.border_radius }}
-                                />
-                              </div>
-                              {customFields
-                                .sort((a, b) => a.order - b.order)
-                                .map((field) => (
-                                  <div key={field.id}>
-                                    {field.type === 'textarea' ? (
-                                      <textarea
-                                        placeholder={field.placeholder || field.label}
-                                        className="w-full px-3 py-2 rounded-lg"
-                                        style={{ border: '1px solid #d1d5db', borderRadius: theme.border_radius }}
-                                        rows={3}
-                                      />
-                                    ) : field.type === 'select' ? (
-                                      <select
-                                        className="w-full px-3 py-2 rounded-lg"
-                                        style={{ border: '1px solid #d1d5db', borderRadius: theme.border_radius }}
-                                      >
-                                        <option value="">{field.placeholder || field.label}</option>
-                                        {field.options?.map((option, idx) => (
-                                          <option key={idx} value={option}>
-                                            {option}
-                                          </option>
-                                        ))}
-                                      </select>
-                                    ) : field.type === 'checkbox' ? (
-                                      <label className="flex items-center">
-                                        <input
-                                          type="checkbox"
-                                          className="rounded"
-                                          style={{ borderColor: '#d1d5db' }}
-                                        />
-                                        <span className="ml-2 text-xs sm:text-sm" style={{ color: '#374151' }}>{field.label}</span>
-                                      </label>
-                                    ) : (
-                                      <input
-                                        type={field.type}
-                                        placeholder={field.placeholder || field.label}
-                                        className="w-full px-3 py-2 rounded-lg"
-                                        style={{ border: '1px solid #d1d5db', borderRadius: theme.border_radius }}
-                                      />
-                                    )}
-                                  </div>
-                                ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </Draggable>
-                  ))}
-                  {provided.placeholder}
-                </div>
+                          </div>
+                        )}
+                      </Droppable>
+                    </div>
+                  </div>
+                </DragDropContext>
               </div>
             )}
-          </Droppable>
-        </div>
-      </div>
-    </DragDropContext>
-  </div>
-)}
 
             {/* Action Buttons */}
             <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-4">
-  <button
-    type="button"
-    onClick={() => navigate(`/checkout/${watch('slug')}`)}
-    className="inline-flex items-center space-x-2 px-3 sm:px-4 py-2 border border-[var(--border-color)] text-[var(--text-color)] rounded-lg hover:bg-[var(--border-color)] transition-colors text-sm sm:text-base"
-  >
-    <EyeIcon className="h-4 w-4" />
-    <span>Testar Link</span>
-  </button>
-  <button
-    type="button"
-    onClick={() => setActiveTab('preview')}
-    className="inline-flex items-center space-x-2 px-3 sm:px-4 py-2 border border-[var(--border-color)] text-[var(--text-color)] rounded-lg hover:bg-[var(--border-color)] transition-colors text-sm sm:text-base"
-  >
-    <EyeIcon className="h-4 w-4" />
-    <span>Visualizar</span>
-  </button>
-  <button
-    type="submit"
-    disabled={checkingSlug}
-    className="inline-flex items-center space-x-2 bg-[var(--primary-bg)] text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-[var(--primary-hover)] transition-colors disabled:bg-gray-400 text-sm sm:text-base"
-  >
-    <BookmarkIcon className="h-4 w-4" />
-    <span>{isEditing ? 'Atualizar Página' : 'Criar Página'}</span>
-  </button>
-</div>
+              <button
+                type="button"
+                onClick={() => navigate(`/checkout/${watch('slug')}`)}
+                className="inline-flex items-center space-x-2 px-3 sm:px-4 py-2 border border-[var(--border-color)] text-[var(--text-color)] rounded-lg hover:bg-[var(--border-color)] transition-colors text-sm sm:text-base"
+              >
+                <EyeIcon className="h-4 w-4" />
+                <span>Testar Link</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('preview')}
+                className="inline-flex items-center space-x-2 px-3 sm:px-4 py-2 border border-[var(--border-color)] text-[var(--text-color)] rounded-lg hover:bg-[var(--border-color)] transition-colors text-sm sm:text-base"
+              >
+                <EyeIcon className="h-4 w-4" />
+                <span>Visualizar</span>
+              </button>
+              <button
+                type="submit"
+                disabled={checkingSlug}
+                className="inline-flex items-center space-x-2 bg-[var(--primary-bg)] text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-[var(--primary-hover)] transition-colors disabled:bg-gray-400 text-sm sm:text-base"
+              >
+                <BookmarkIcon className="h-4 w-4" />
+                <span>{isEditing ? 'Atualizar Página' : 'Criar Página'}</span>
+              </button>
+            </div>
           </form>
         </div>
       </div>

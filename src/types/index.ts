@@ -53,6 +53,8 @@ export interface Product {
   price: number;
   type: 'digital' | 'physical';
   image_url?: string;
+  digital_file_url?: string;
+  discount?: number;
   is_active: boolean;
   requires_shipping: boolean;
   order: number;

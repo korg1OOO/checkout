@@ -10,6 +10,7 @@ import CheckoutPageBuilder from './pages/CheckoutPageBuilder';
 import CheckoutPage from './pages/CheckoutPage';
 import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
+import Products from './pages/Products';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -69,6 +70,7 @@ function AppRoutes() {
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="checkout-pages" element={<CheckoutPages />} />
+        <Route path="products" element={<Products />} />
         <Route path="checkout-pages/:id/edit" element={<CheckoutPageBuilder />} />
         <Route path="checkout-pages/new" element={<CheckoutPageBuilder />} />
         <Route path="analytics" element={<Analytics />} />
