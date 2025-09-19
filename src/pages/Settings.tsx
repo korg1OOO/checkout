@@ -123,113 +123,129 @@ export default function Settings() {
     if (!user || !session || loading) return;
 
     const fetchProfileAndPrefs = async () => {
-      try {
-        const { data: { user: refreshedUser }, error: userError } = await supabase.auth.getUser();
-        if (userError) {
-          console.error('User fetch error:', userError);
-          throw new Error('Erro ao buscar dados do usuário');
-        }
+  try {
+    const { data: { user: refreshedUser }, error: userError } = await supabase.auth.getUser();
+    if (userError) {
+      console.error('User fetch error:', userError);
+      throw new Error('Erro ao buscar dados do usuário');
+    }
 
-        console.log('Fetched user:', refreshedUser);
+    console.log('Fetched user:', refreshedUser);
 
-        profileForm.setValue('name', refreshedUser?.user_metadata?.name || '');
-        profileForm.setValue('email', refreshedUser?.email || '');
-        setPendingEmail(refreshedUser?.new_email || null);
+    profileForm.setValue('name', refreshedUser?.user_metadata?.name || '');
+    profileForm.setValue('email', refreshedUser?.email || '');
+    setPendingEmail(refreshedUser?.new_email || null);
 
-        // Fetch or initialize user_profiles with additional fields
-        let { data: profileData, error: profileError } = await supabase
-          .from('user_profiles')
-          .select('company, website, delivery_email, utmify_key')
-          .eq('user_id', user.id)
-          .maybeSingle();
-
-        if (profileError && profileError.code !== 'PGRST116') {
-          console.error('Profile fetch error:', profileError);
-          throw new Error(`Erro ao buscar perfil: ${profileError.message}`);
-        }
-
-        if (!profileData) {
-          const { error: insertError } = await supabase
-            .from('user_profiles')
-            .insert({ user_id: user.id, company: null, website: null, delivery_email: null, utmify_key: null });
-          if (insertError) {
-            console.error('Profile insert error:', insertError);
-            throw new Error(`Erro ao criar perfil: ${insertError.message}`);
-          }
-          profileData = { company: null, website: null, delivery_email: null, utmify_key: null };
-        }
-
-        profileForm.setValue('company', profileData.company || '');
-        profileForm.setValue('website', profileData.website || '');
-        setDeliveryEmail(profileData.delivery_email || '');
-        deliveryEmailForm.setValue('deliveryEmail', profileData.delivery_email || '');
-        setUtmifyKey(profileData.utmify_key || '');
-        utmifyForm.setValue('utmifyKey', profileData.utmify_key || '');
-
-        // Fetch or initialize user_preferences
-        let { data: prefsData, error: prefsError } = await supabase
-          .from('user_preferences')
-          .select('*')
-          .eq('user_id', user.id)
-          .maybeSingle();
-
-        if (prefsError && prefsError.code !== 'PGRST116') {
-          console.error('Preferences fetch error:', prefsError);
-          throw new Error(`Erro ao buscar preferências: ${prefsError.message}`);
-        }
-
-        if (!prefsData) {
-          const defaultPrefs = {
-            user_id: user.id,
-            new_orders: true,
-            payment_received: true,
-            weekly_reports: true,
-            product_updates: true,
-            browser_notifications: false,
-            mobile_notifications: false,
-          };
-          const { error: insertError } = await supabase
-            .from('user_preferences')
-            .insert(defaultPrefs);
-          if (insertError) {
-            console.error('Preferences insert error:', insertError);
-            throw new Error(`Erro ao criar preferências: ${insertError.message}`);
-          }
-          prefsData = defaultPrefs;
-        }
-
-        setNotificationPrefs({
-          new_orders: prefsData.new_orders ?? true,
-          payment_received: prefsData.payment_received ?? true,
-          weekly_reports: prefsData.weekly_reports ?? true,
-          product_updates: prefsData.product_updates ?? true,
-          browser_notifications: prefsData.browser_notifications ?? false,
-          mobile_notifications: prefsData.mobile_notifications ?? false,
-        });
-
-        // Fetch pixels from user_pixels table (assuming it exists)
-        const { data: pixelsData, error: pixelsError } = await supabase
-          .from('user_pixels')
-          .select('pixel_id')
-          .eq('user_id', user.id);
-        if (pixelsError) {
-          console.error('Pixels fetch error:', pixelsError);
-          throw new Error(`Erro ao buscar pixels: ${pixelsError.message}`);
-        }
-        setPixels(pixelsData?.map((p: { pixel_id: string }) => p.pixel_id) || []);
-
-        // Check 2FA status
-        const { data: mfaData, error: mfaError } = await supabase.auth.mfa.listFactors();
-        if (mfaError) {
-          console.error('MFA listFactors error:', mfaError);
-          throw new Error('Erro ao verificar status de 2FA');
-        }
-        setIs2FAEnabled(!!mfaData?.totp?.find((factor) => factor.status === 'verified'));
-      } catch (error: any) {
-        console.error('Erro ao carregar dados:', error);
-        toast.error(error.message || 'Falha ao carregar perfil ou preferências');
+    // Fetch or initialize user_profiles with additional fields
+    let profileData: any = null;
+    try {
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('company, website, delivery_email, utmify_key')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (error && error.code !== 'PGRST116') {
+        console.error('Profile fetch error:', error);
+        throw new Error(`Erro ao buscar perfil: ${error.message}`);
       }
-    };
+      profileData = data;
+    } catch (error) {
+      console.warn('Error accessing user_profiles table:', error);
+    }
+
+    if (!profileData) {
+      const { error: insertError } = await supabase
+        .from('user_profiles')
+        .insert({ user_id: user.id, company: null, website: null, delivery_email: null, utmify_key: null });
+      if (insertError) {
+        console.error('Profile insert error:', insertError);
+        throw new Error(`Erro ao criar perfil: ${insertError.message}`);
+      }
+      profileData = { company: null, website: null, delivery_email: null, utmify_key: null };
+    }
+
+    profileForm.setValue('company', profileData.company || '');
+    profileForm.setValue('website', profileData.website || '');
+    setDeliveryEmail(profileData.delivery_email || '');
+    deliveryEmailForm.setValue('deliveryEmail', profileData.delivery_email || '');
+    setUtmifyKey(profileData.utmify_key || '');
+    utmifyForm.setValue('utmifyKey', profileData.utmify_key || '');
+
+    // Fetch or initialize user_preferences
+    let prefsData: any = null;
+    try {
+      const { data, error } = await supabase
+        .from('user_preferences')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (error && error.code !== 'PGRST116') {
+        console.error('Preferences fetch error:', error);
+        throw new Error(`Erro ao buscar preferências: ${error.message}`);
+      }
+      prefsData = data;
+    } catch (error) {
+      console.warn('Error accessing user_preferences table:', error);
+    }
+
+    if (!prefsData) {
+      const defaultPrefs = {
+        user_id: user.id,
+        new_orders: true,
+        payment_received: true,
+        weekly_reports: true,
+        product_updates: true,
+        browser_notifications: false,
+        mobile_notifications: false,
+      };
+      const { error: insertError } = await supabase
+        .from('user_preferences')
+        .insert(defaultPrefs);
+      if (insertError) {
+        console.error('Preferences insert error:', insertError);
+        throw new Error(`Erro ao criar preferências: ${insertError.message}`);
+      }
+      prefsData = defaultPrefs;
+    }
+
+    setNotificationPrefs({
+      new_orders: prefsData.new_orders ?? true,
+      payment_received: prefsData.payment_received ?? true,
+      weekly_reports: prefsData.weekly_reports ?? true,
+      product_updates: prefsData.product_updates ?? true,
+      browser_notifications: prefsData.browser_notifications ?? false,
+      mobile_notifications: prefsData.mobile_notifications ?? false,
+    });
+
+    // Fetch pixels from user_pixels table
+    let pixelsData: any[] | null = [];
+    try {
+      const { data, error } = await supabase
+        .from('user_pixels')
+        .select('pixel_id')
+        .eq('user_id', user.id);
+      if (error) {
+        console.warn('Pixels fetch error:', error);
+      } else {
+        pixelsData = data;
+      }
+    } catch (error) {
+      console.warn('Error accessing user_pixels table:', error);
+    }
+    setPixels(pixelsData?.map((p: { pixel_id: string }) => p.pixel_id) || []);
+
+    // Check 2FA status
+    const { data: mfaData, error: mfaError } = await supabase.auth.mfa.listFactors();
+    if (mfaError) {
+      console.error('MFA listFactors error:', mfaError);
+      throw new Error('Erro ao verificar status de 2FA');
+    }
+    setIs2FAEnabled(!!mfaData?.totp?.find((factor) => factor.status === 'verified'));
+  } catch (error: any) {
+    console.error('Erro ao carregar dados:', error);
+    toast.error(error.message || 'Falha ao carregar perfil ou preferências');
+  }
+};
 
     fetchProfileAndPrefs();
   }, [user, session, loading, profileForm, deliveryEmailForm, utmifyForm]);

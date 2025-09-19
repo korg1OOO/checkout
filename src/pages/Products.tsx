@@ -12,6 +12,7 @@ import { Product } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
+import { debounce } from '../utils/debounce'; // Import debounce
 
 const productSchema = yup.object({
   name: yup.string().required('Nome é obrigatório'),
@@ -28,14 +29,6 @@ const productSchema = yup.object({
 });
 
 type ProductFormData = yup.InferType<typeof productSchema>;
-
-function debounce<T extends (...args: any[]) => void>(func: T, wait: number) {
-  let timeout: NodeJS.Timeout;
-  return (...args: Parameters<T>) => {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => func(...args), wait);
-  };
-}
 
 export default function Products() {
   const [products, setProducts] = useState<Product[]>([]);

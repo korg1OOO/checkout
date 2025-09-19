@@ -17,6 +17,7 @@ import { CheckoutPage, CheckoutTheme, CustomField, Product, LayoutElement } from
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
+import { debounce } from '../utils/debounce';
 
 const schema = yup.object({
   title: yup.string().required('Título é obrigatório').max(255, 'Título deve ter no máximo 255 caracteres'),
@@ -41,6 +42,8 @@ interface FormData {
   logo_url: string | null;
   is_active: boolean;
 }
+
+type MetricCaptureMethod = 'utmify' | 'facebook_pixel' | 'none';
 
 export default function CheckoutPageBuilder() {
   const { id } = useParams<{ id: string }>();
@@ -70,6 +73,8 @@ export default function CheckoutPageBuilder() {
   const [userUtmifyKey, setUserUtmifyKey] = useState<string>('');
   const [userDeliveryEmail, setUserDeliveryEmail] = useState<string>('');
   const [globalProducts, setGlobalProducts] = useState<Product[]>([]);
+  const [metricCaptureMethod, setMetricCaptureMethod] = useState<MetricCaptureMethod>('none');
+  const [selectedPixel, setSelectedPixel] = useState<string>('');
 
   const {
     register,
@@ -94,7 +99,6 @@ export default function CheckoutPageBuilder() {
   const watchedDescription = watch('description');
   const watchedLogoUrl = watch('logo_url');
 
-  // Toolbox elements for drag-and-drop
   const toolboxItems: LayoutElement[] = React.useMemo(() => [
     { id: 'toolbox-title', type: 'title', content: { text: 'Título da Página', style: { fontSize: '24px', fontWeight: 'bold', align: 'center' } }, order: 0 },
     { id: 'toolbox-description', type: 'description', content: { text: 'Descrição da Página', style: { fontSize: '16px', align: 'center' } }, order: 1 },
@@ -108,7 +112,6 @@ export default function CheckoutPageBuilder() {
     { id: 'toolbox-customer_info_form', type: 'customer_info_form', content: {}, order: 9 },
   ], []);
 
-  // Log navigation details
   useEffect(() => {
     console.log('Page ID from useParams:', id);
     console.log('Current route:', location.pathname);
@@ -120,7 +123,6 @@ export default function CheckoutPageBuilder() {
     }
   }, [id, isEditing, navigate, location.pathname]);
 
-  // Utility to validate URLs
   const isValidUrl = (url: string) => {
     try {
       new URL(url);
@@ -130,7 +132,6 @@ export default function CheckoutPageBuilder() {
     }
   };
 
-  // Auto-generate slug from title
   useEffect(() => {
     if (watchedTitle && !isEditing) {
       const slug = watchedTitle
@@ -143,7 +144,6 @@ export default function CheckoutPageBuilder() {
     }
   }, [watchedTitle, setValue, isEditing]);
 
-  // Check slug uniqueness
   const checkSlugUniqueness = useCallback(
     debounce(async (slug: string) => {
       if (!slug || isEditing || !user?.id) return;
@@ -179,7 +179,6 @@ export default function CheckoutPageBuilder() {
     }
   }, [watchedSlug, checkSlugUniqueness, isEditing]);
 
-  // Fetch existing page data, user settings, and global products
   useEffect(() => {
     if (!user?.id) {
       setLoading(false);
@@ -189,29 +188,50 @@ export default function CheckoutPageBuilder() {
     }
 
     const fetchUserSettings = async () => {
-      try {
-        // Fetch pixels
-        const { data: pixelsData, error: pixelsError } = await supabase
-          .from('user_pixels')
-          .select('pixel_id')
-          .eq('user_id', user.id);
-        if (pixelsError) throw pixelsError;
-        setUserPixels(pixelsData?.map(p => p.pixel_id) || []);
-
-        // Fetch user_profiles for utmify and delivery_email
-        const { data: profileData, error: profileError } = await supabase
-          .from('user_profiles')
-          .select('utmify_key, delivery_email')
-          .eq('user_id', user.id)
-          .single();
-        if (profileError) throw profileError;
-        setUserUtmifyKey(profileData?.utmify_key || '');
-        setUserDeliveryEmail(profileData?.delivery_email || '');
-      } catch (error) {
-        console.error('Error fetching user settings:', error);
-        toast.error('Falha ao carregar configurações do usuário (pixels, Utmify, email)');
+  try {
+    // Attempt to fetch pixels
+    let pixelsData: any[] | null = [];
+    try {
+      const { data, error } = await supabase
+        .from('user_pixels')
+        .select('pixel_id')
+        .eq('user_id', user.id);
+      if (error) {
+        console.warn('Failed to fetch user_pixels:', error.message);
+      } else {
+        pixelsData = data;
       }
-    };
+    } catch (error) {
+      console.warn('Error accessing user_pixels table:', error);
+    }
+    setUserPixels(pixelsData?.map(p => p.pixel_id) || []);
+
+    // Attempt to fetch user profile
+    let profileData: any = null;
+    try {
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('utmify_key, delivery_email')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (error) {
+        console.warn('Failed to fetch user_profiles:', error.message);
+      } else {
+        profileData = data;
+      }
+    } catch (error) {
+      console.warn('Error accessing user_profiles table:', error);
+    }
+    setUserUtmifyKey(profileData?.utmify_key || '');
+    setUserDeliveryEmail(profileData?.delivery_email || '');
+  } catch (error) {
+    console.error('Error fetching user settings:', error);
+    toast.error('Falha ao carregar configurações do usuário. Verifique sua conexão com o banco de dados.');
+    setUserPixels([]);
+    setUserUtmifyKey('');
+    setUserDeliveryEmail('');
+  }
+};
 
     fetchUserSettings();
 
@@ -248,7 +268,6 @@ export default function CheckoutPageBuilder() {
       .subscribe();
 
     if (!isEditing) {
-      // Initialize default layout for new pages
       setLayout([
         { id: `element-${Date.now()}-1`, type: 'title', content: { text: watchedTitle || 'Título da Página', style: { fontSize: '24px', fontWeight: 'bold', align: 'center' } }, order: 0 },
         { id: `element-${Date.now()}-2`, type: 'description', content: { text: watchedDescription || 'Descrição da Página', style: { fontSize: '16px', align: 'center' } }, order: 1 },
@@ -302,10 +321,19 @@ export default function CheckoutPageBuilder() {
         })).sort((a: LayoutElement, b: LayoutElement) => a.order - b.order);
 
         setCheckoutPage(data);
-        setTheme(data.theme || initialTheme);
+        setTheme(data.theme || theme);
         setCustomFields(sortedCustomFields);
         setProducts(sortedProducts);
         setLayout(sortedLayout);
+        if (data.utmify_key) {
+          setMetricCaptureMethod('utmify');
+          setUserUtmifyKey(data.utmify_key);
+        } else if (data.pixels && data.pixels.length > 0) {
+          setMetricCaptureMethod('facebook_pixel');
+          setSelectedPixel(data.pixels[0] || '');
+        } else {
+          setMetricCaptureMethod('none');
+        }
         reset({
           title: data.title,
           slug: data.slug,
@@ -327,9 +355,8 @@ export default function CheckoutPageBuilder() {
     return () => {
       productsSubscription.unsubscribe();
     };
-  }, [id, isEditing, user?.id, navigate, reset]); // Removed theme, watchedTitle, watchedDescription, watchedLogoUrl
+  }, [id, isEditing, user?.id, navigate, reset, theme]);
 
-  // Real-time subscription
   useEffect(() => {
     if (!user?.id || !isEditing || !id) return;
 
@@ -366,6 +393,15 @@ export default function CheckoutPageBuilder() {
             setCustomFields(sortedCustomFields);
             setProducts(sortedProducts);
             setLayout(sortedLayout);
+            if (payload.new.utmify_key) {
+              setMetricCaptureMethod('utmify');
+              setUserUtmifyKey(payload.new.utmify_key);
+            } else if (payload.new.pixels && payload.new.pixels.length > 0) {
+              setMetricCaptureMethod('facebook_pixel');
+              setSelectedPixel(payload.new.pixels[0] || '');
+            } else {
+              setMetricCaptureMethod('none');
+            }
             reset({
               title: payload.new.title,
               slug: payload.new.slug,
@@ -392,7 +428,6 @@ export default function CheckoutPageBuilder() {
     };
   }, [user?.id, isEditing, id, reset, theme]);
 
-  // Handle drag end for layout
   const onDragEnd = (result: DropResult) => {
     const { source, destination } = result;
     if (!destination) return;
@@ -430,18 +465,17 @@ export default function CheckoutPageBuilder() {
       newLayout.splice(destination.index, 0, newElement);
       const updatedLayout = newLayout.map((item, index) => ({ ...item, order: index }));
       setLayout(updatedLayout);
-      console.log('Updated layout:', updatedLayout); // Debug log
+      console.log('Updated layout:', updatedLayout);
     } else if (source.droppableId === 'layout' && destination.droppableId === 'layout') {
       const newLayout = [...layout];
       const [movedElement] = newLayout.splice(source.index, 1);
       newLayout.splice(destination.index, 0, movedElement);
       const updatedLayout = newLayout.map((item, index) => ({ ...item, order: index }));
       setLayout(updatedLayout);
-      console.log('Reordered layout:', updatedLayout); // Debug log
+      console.log('Reordered layout:', updatedLayout);
     }
   };
 
-  // Handle drag end for custom fields
   const onDragEndFields = (result: DropResult) => {
     if (!result.destination) return;
 
@@ -457,7 +491,6 @@ export default function CheckoutPageBuilder() {
     setCustomFields(updatedFields);
   };
 
-  // Handle drag end for products
   const onDragEndProducts = (result: DropResult) => {
     if (!result.destination) return;
 
@@ -539,9 +572,9 @@ export default function CheckoutPageBuilder() {
         })),
         is_active: data.is_active,
         user_id: user.id,
-        pixels: userPixels, // Integrate pixels from user settings
-        utmify_key: userUtmifyKey || undefined, // Integrate Utmify key
-        delivery_email: userDeliveryEmail || undefined, // Integrate delivery email
+        pixels: metricCaptureMethod === 'facebook_pixel' && selectedPixel ? [selectedPixel] : undefined,
+        utmify_key: metricCaptureMethod === 'utmify' ? userUtmifyKey || undefined : undefined,
+        delivery_email: userDeliveryEmail || undefined,
       };
 
       console.log('Submitting pageData:', JSON.stringify(pageData, null, 2));
@@ -634,7 +667,7 @@ export default function CheckoutPageBuilder() {
 
     const newProd: Product = {
       ...globalProduct,
-      id: `${globalProduct.id}-page-${Date.now()}`, // Unique id for page instance
+      id: `${globalProduct.id}-page-${Date.now()}`,
       order: products.length,
     };
 
@@ -708,12 +741,12 @@ export default function CheckoutPageBuilder() {
     { id: 'theme', name: 'Tema', icon: '🎨' },
     { id: 'fields', name: 'Campos Personalizados', icon: '📋' },
     { id: 'products', name: 'Produtos', icon: '🛍️' },
+    { id: 'metrics', name: 'Captura de Métrica', icon: '📊' },
     { id: 'preview', name: 'Visualizar', icon: '👁️' },
   ];
 
   return (
     <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-      {/* Mobile Menu Button */}
       <button
         className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-[var(--sidebar-bg)] rounded-md shadow-md"
         onClick={() => setIsNavOpen(!isNavOpen)}
@@ -735,7 +768,6 @@ export default function CheckoutPageBuilder() {
       </div>
 
       <div className="flex flex-col lg:flex-row lg:gap-8">
-        {/* Sidebar Navigation */}
         <div
           className={`lg:w-64 bg-[var(--sidebar-bg)] lg:bg-transparent rounded-xl lg:rounded-none shadow-sm lg:shadow-none border lg:border-none border-[var(--border-color)] lg:sticky lg:top-4 transform transition-transform duration-300 ease-in-out ${
             isNavOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
@@ -749,7 +781,7 @@ export default function CheckoutPageBuilder() {
                   setActiveTab(tab.id);
                   setIsNavOpen(false);
                 }}
-                className={`w-full flex flex items-center space-x-3 px-3 py-2 text-sm sm:text-base font-medium rounded-lg transition-colors ${
+                className={`w-full flex items-center space-x-3 px-3 py-2 text-sm sm:text-base font-medium rounded-lg transition-colors ${
                   activeTab === tab.id
                     ? 'bg-[var(--active-bg)] text-[var(--active-text)] border border-[var(--border-color)]'
                     : 'text-[var(--text-color)] hover:bg-[var(--border-color)]'
@@ -762,10 +794,8 @@ export default function CheckoutPageBuilder() {
           </nav>
         </div>
 
-        {/* Main Content */}
         <div className="flex-1 mt-4 lg:mt-0">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 sm:space-y-8">
-            {/* Basic Info Tab */}
             {activeTab === 'basic' && (
               <div className="bg-[var(--sidebar-bg)] rounded-xl p-4 sm:p-6 shadow-sm border border-[var(--border-color)]">
                 <h2 className="text-base sm:text-lg font-semibold text-[var(--text-color)] mb-4 sm:mb-6">Informações Básicas</h2>
@@ -862,7 +892,6 @@ export default function CheckoutPageBuilder() {
               </div>
             )}
 
-            {/* Theme Tab */}
             {activeTab === 'theme' && (
               <div className="bg-[var(--sidebar-bg)] rounded-xl p-4 sm:p-6 shadow-sm border border-[var(--border-color)]">
                 <h2 className="text-base sm:text-lg font-semibold text-[var(--text-color)] mb-4 sm:mb-6">Personalização do Tema</h2>
@@ -999,7 +1028,6 @@ export default function CheckoutPageBuilder() {
               </div>
             )}
 
-            {/* Custom Fields Tab */}
             {activeTab === 'fields' && (
               <div className="bg-[var(--sidebar-bg)] rounded-xl p-4 sm:p-6 shadow-sm border border-[var(--border-color)]">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6 gap-4">
@@ -1169,7 +1197,6 @@ export default function CheckoutPageBuilder() {
               </div>
             )}
 
-            {/* Products Tab */}
             {activeTab === 'products' && (
               <div className="bg-[var(--sidebar-bg)] rounded-xl p-4 sm:p-6 shadow-sm border border-[var(--border-color)]">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6 gap-4">
@@ -1365,13 +1392,86 @@ export default function CheckoutPageBuilder() {
               </div>
             )}
 
-            {/* Preview Tab */}
+            {activeTab === 'metrics' && (
+              <div className="bg-[var(--sidebar-bg)] rounded-xl p-4 sm:p-6 shadow-sm border border-[var(--border-color)]">
+                <h2 className="text-base sm:text-lg font-semibold text-[var(--text-color)] mb-4 sm:mb-6">
+                  Captura de Métrica
+                </h2>
+                <div className="space-y-4 sm:space-y-6">
+                  <div>
+                    <label className="block text-xs sm:text-sm font-medium text-[var(--text-color)] mb-2">
+                      Método de Captura de Métrica
+                    </label>
+                    <select
+                      value={metricCaptureMethod}
+                      onChange={(e) => {
+                        setMetricCaptureMethod(e.target.value as MetricCaptureMethod);
+                        if (e.target.value !== 'facebook_pixel') {
+                          setSelectedPixel('');
+                        }
+                      }}
+                      className="w-full px-3 py-2 border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-bg)]"
+                    >
+                      <option value="none">Nenhum</option>
+                      <option value="utmify">Utmify</option>
+                      <option value="facebook_pixel">Facebook Pixel</option>
+                    </select>
+                  </div>
+
+                  {metricCaptureMethod === 'utmify' && (
+                    <div>
+                      <label className="block text-xs sm:text-sm font-medium text-[var(--text-color)] mb-2">
+                        Chave Utmify
+                      </label>
+                      <input
+                        type="text"
+                        value={userUtmifyKey}
+                        onChange={(e) => setUserUtmifyKey(e.target.value)}
+                        className="w-full px-3 py-2 border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-bg)]"
+                        placeholder="Digite sua chave Utmify"
+                      />
+                      {!userUtmifyKey && (
+                        <p className="mt-1 text-xs sm:text-sm text-red-600">
+                          Por favor, adicione uma chave Utmify nas configurações para usar esta opção.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {metricCaptureMethod === 'facebook_pixel' && (
+                    <div>
+                      <label className="block text-xs sm:text-sm font-medium text-[var(--text-color)] mb-2">
+                        Selecionar Pixel do Facebook
+                      </label>
+                      {userPixels.length > 0 ? (
+                        <select
+                          value={selectedPixel}
+                          onChange={(e) => setSelectedPixel(e.target.value)}
+                          className="w-full px-3 py-2 border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-bg)]"
+                        >
+                          <option value="">Selecione um pixel</option>
+                          {userPixels.map((pixel) => (
+                            <option key={pixel} value={pixel}>
+                              {pixel}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <p className="text-xs sm:text-sm text-red-600">
+                          Nenhum pixel do Facebook configurado. Adicione um pixel nas configurações.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {activeTab === 'preview' && (
               <div className="bg-[var(--sidebar-bg)] rounded-xl p-4 sm:p-6 shadow-sm border border-[var(--border-color)]">
                 <h2 className="text-base sm:text-lg font-semibold text-[var(--text-color)] mb-4 sm:mb-6">Visualização</h2>
                 <DragDropContext onDragEnd={onDragEnd}>
                   <div className="flex flex-col lg:flex-row gap-6">
-                    {/* Toolbox */}
                     <div className="w-full lg:w-1/4 bg-[var(--active-bg)] p-4 rounded-lg">
                       <h3 className="text-sm font-medium text-[var(--text-color)] mb-4">
                         Elementos
@@ -1420,8 +1520,7 @@ export default function CheckoutPageBuilder() {
                       </Droppable>
                     </div>
 
-                    {/* Preview Area */}
-                    <div className="flex-1 border rounded-lg overflow-hidden preview-area" style={{ border: '1px solid #d1d5db' }}>
+                                        <div className="flex-1 border rounded-lg overflow-hidden preview-area" style={{ border: '1px solid #d1d5db' }}>
                       <div style={{ backgroundColor: '#f9fafb', padding: '0.5rem 1rem', fontSize: '0.875rem', color: '#6b7280' }}>
                         Visualização: {window.location.origin}/checkout/{watch('slug') || 'sua-url'}
                       </div>
@@ -1843,7 +1942,6 @@ export default function CheckoutPageBuilder() {
               </div>
             )}
 
-            {/* Action Buttons */}
             <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-4">
               <button
                 type="button"
@@ -1875,13 +1973,4 @@ export default function CheckoutPageBuilder() {
       </div>
     </div>
   );
-}
-
-// Utility to debounce a function
-function debounce<T extends (...args: any[]) => void>(func: T, wait: number) {
-  let timeout: NodeJS.Timeout;
-  return (...args: Parameters<T>) => {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => func(...args), wait);
-  };
 }
