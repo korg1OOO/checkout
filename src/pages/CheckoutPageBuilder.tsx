@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
@@ -75,6 +75,8 @@ export default function CheckoutPageBuilder() {
   const [globalProducts, setGlobalProducts] = useState<Product[]>([]);
   const [metricCaptureMethod, setMetricCaptureMethod] = useState<MetricCaptureMethod>('none');
   const [selectedPixel, setSelectedPixel] = useState<string>('');
+
+  const stableTheme = useMemo(() => theme, [theme.primary_color, theme.secondary_color, theme.background_color, theme.text_color, theme.font_family, theme.border_radius, theme.button_style]);
 
   const {
     register,
@@ -188,50 +190,48 @@ export default function CheckoutPageBuilder() {
     }
 
     const fetchUserSettings = async () => {
-  try {
-    // Attempt to fetch pixels
-    let pixelsData: any[] | null = [];
-    try {
-      const { data, error } = await supabase
-        .from('user_pixels')
-        .select('pixel_id')
-        .eq('user_id', user.id);
-      if (error) {
-        console.warn('Failed to fetch user_pixels:', error.message);
-      } else {
-        pixelsData = data;
-      }
-    } catch (error) {
-      console.warn('Error accessing user_pixels table:', error);
-    }
-    setUserPixels(pixelsData?.map(p => p.pixel_id) || []);
+      try {
+        let pixelsData: any[] | null = [];
+        try {
+          const { data, error } = await supabase
+            .from('user_pixels')
+            .select('pixel_id')
+            .eq('user_id', user.id);
+          if (error) {
+            console.warn('Failed to fetch user_pixels:', error.message);
+          } else {
+            pixelsData = data;
+          }
+        } catch (error) {
+          console.warn('Error accessing user_pixels table:', error);
+        }
+        setUserPixels(pixelsData?.map(p => p.pixel_id) || []);
 
-    // Attempt to fetch user profile
-    let profileData: any = null;
-    try {
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .select('utmify_key, delivery_email')
-        .eq('user_id', user.id)
-        .maybeSingle();
-      if (error) {
-        console.warn('Failed to fetch user_profiles:', error.message);
-      } else {
-        profileData = data;
+        let profileData: any = null;
+        try {
+          const { data, error } = await supabase
+            .from('user_profiles')
+            .select('utmify_key, delivery_email')
+            .eq('user_id', user.id)
+            .maybeSingle();
+          if (error) {
+            console.warn('Failed to fetch user_profiles:', error.message);
+          } else {
+            profileData = data;
+          }
+        } catch (error) {
+          console.warn('Error accessing user_profiles table:', error);
+        }
+        setUserUtmifyKey(profileData?.utmify_key || '');
+        setUserDeliveryEmail(profileData?.delivery_email || '');
+      } catch (error) {
+        console.error('Error fetching user settings:', error);
+        toast.error('Falha ao carregar configurações do usuário. Verifique sua conexão com o banco de dados.');
+        setUserPixels([]);
+        setUserUtmifyKey('');
+        setUserDeliveryEmail('');
       }
-    } catch (error) {
-      console.warn('Error accessing user_profiles table:', error);
-    }
-    setUserUtmifyKey(profileData?.utmify_key || '');
-    setUserDeliveryEmail(profileData?.delivery_email || '');
-  } catch (error) {
-    console.error('Error fetching user settings:', error);
-    toast.error('Falha ao carregar configurações do usuário. Verifique sua conexão com o banco de dados.');
-    setUserPixels([]);
-    setUserUtmifyKey('');
-    setUserDeliveryEmail('');
-  }
-};
+    };
 
     fetchUserSettings();
 
@@ -321,7 +321,7 @@ export default function CheckoutPageBuilder() {
         })).sort((a: LayoutElement, b: LayoutElement) => a.order - b.order);
 
         setCheckoutPage(data);
-        setTheme(data.theme || theme);
+        setTheme(prev => ({ ...prev, ...data.theme }));
         setCustomFields(sortedCustomFields);
         setProducts(sortedProducts);
         setLayout(sortedLayout);
@@ -355,7 +355,7 @@ export default function CheckoutPageBuilder() {
     return () => {
       productsSubscription.unsubscribe();
     };
-  }, [id, isEditing, user?.id, navigate, reset, theme]);
+  }, [id, isEditing, user?.id, navigate, reset]);
 
   useEffect(() => {
     if (!user?.id || !isEditing || !id) return;
@@ -389,7 +389,7 @@ export default function CheckoutPageBuilder() {
             })).sort((a: LayoutElement, b: LayoutElement) => a.order - b.order);
 
             setCheckoutPage(payload.new as CheckoutPage);
-            setTheme(payload.new.theme || theme);
+            setTheme(prev => ({ ...prev, ...payload.new.theme }));
             setCustomFields(sortedCustomFields);
             setProducts(sortedProducts);
             setLayout(sortedLayout);
@@ -426,7 +426,7 @@ export default function CheckoutPageBuilder() {
       console.log('Unsubscribing from channel:', `checkout_page_${id}`);
       subscriptionRef.current?.unsubscribe();
     };
-  }, [user?.id, isEditing, id, reset, theme]);
+  }, [user?.id, isEditing, id, reset]);
 
   const onDragEnd = (result: DropResult) => {
     const { source, destination } = result;
@@ -1290,6 +1290,7 @@ export default function CheckoutPageBuilder() {
                                       value={product.discount || 0}
                                       onChange={(e) => updateProduct(index, { discount: parseFloat(e.target.value) || 0 })}
                                       className="w-full px-3 py-2 border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-bg)]"
+                                      placeholder="0"
                                     />
                                   </div>
 
@@ -1520,7 +1521,7 @@ export default function CheckoutPageBuilder() {
                       </Droppable>
                     </div>
 
-                                        <div className="flex-1 border rounded-lg overflow-hidden preview-area" style={{ border: '1px solid #d1d5db' }}>
+                    <div className="flex-1 border rounded-lg overflow-hidden preview-area" style={{ border: '1px solid #d1d5db' }}>
                       <div style={{ backgroundColor: '#f9fafb', padding: '0.5rem 1rem', fontSize: '0.875rem', color: '#6b7280' }}>
                         Visualização: {window.location.origin}/checkout/{watch('slug') || 'sua-url'}
                       </div>
